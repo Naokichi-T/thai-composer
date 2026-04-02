@@ -12,6 +12,9 @@
   // 検索結果を格納する配列
   let results = $state([]);
 
+  // キーボードで選択中の候補のインデックス（-1は未選択）
+  let selectedIndex = $state(-1);
+
   // 検索中かどうかのフラグ（ローディング表示に使う）
   let loading = $state(false);
 
@@ -132,9 +135,9 @@
    * 最大30件に絞ってresultsに格納する
    */
   function searchWords(q) {
-    // 入力が空のときは結果をリセットして終了
     if (!q.trim()) {
       results = [];
+      selectedIndex = -1;
       return;
     }
 
@@ -187,7 +190,7 @@
   function selectWord(word) {
     composedWords = [...composedWords, word.thai];
     query = "";
-    // DOMの更新が終わってから入力欄にフォーカスを戻す
+    selectedIndex = -1;
     setTimeout(() => {
       inputEl?.focus();
     }, 0);
@@ -286,10 +289,23 @@
       bind:value={query}
       bind:this={inputEl}
       onkeydown={(e) => {
-        // Enterキーを押したら入力内容をそのまま追加する
-        if (e.key === "Enter" && query.length > 0) {
-          composedWords = [...composedWords, query];
-          query = "";
+        if (e.key === "ArrowDown") {
+          // ↓キー：次の候補に移動（最後の候補を超えたら止まる）
+          e.preventDefault();
+          selectedIndex = Math.min(selectedIndex + 1, results.length - 1);
+        } else if (e.key === "ArrowUp") {
+          // ↑キー：前の候補に移動（-1で未選択に戻る）
+          e.preventDefault();
+          selectedIndex = Math.max(selectedIndex - 1, -1);
+        } else if (e.key === "Enter") {
+          if (selectedIndex >= 0 && results[selectedIndex]) {
+            // 候補が選択中ならその候補を確定する
+            selectWord(results[selectedIndex]);
+          } else if (query.length > 0) {
+            // 未選択ならそのまま追加する
+            composedWords = [...composedWords, query];
+            query = "";
+          }
         }
       }}
     />
@@ -307,8 +323,8 @@
 
   <!-- 検索結果 -->
   <ul class="results">
-    {#each results as word}
-      <button class="result-item" onclick={() => selectWord(word)}>
+    {#each results as word, i}
+      <button class="result-item" class:selected={i === selectedIndex} onclick={() => selectWord(word)}>
         <span class="thai">{word.thai}</span>
         <span class="reading">{word.reading}</span>
         <span class="meaning">{word.meaning}</span>
@@ -379,6 +395,10 @@
     padding: 12px;
     gap: 4px;
     text-align: left;
+  }
+
+  .result-item.selected {
+    background-color: #e8e7f0;
   }
 
   .thai {
