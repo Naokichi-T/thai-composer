@@ -18,6 +18,9 @@
   // エラーメッセージ
   let errorMessage = $state("");
 
+  // 作成エリアに追加された単語を格納する配列
+  let composedWords = $state([]);
+
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
    * Supabaseは1回のリクエストで最大1000件しか取得できないため
@@ -111,6 +114,17 @@
   }
 
   /**
+   * 候補をクリックしたときに作成エリアに単語を追加する関数
+   * 追加後は入力欄をリセットして次の入力に備える
+   */
+  function selectWord(word) {
+    // 作成エリアに選んだ単語のthai文字列を追加する
+    composedWords = [...composedWords, word.thai];
+    // 入力欄をリセットする
+    query = "";
+  }
+
+  /**
    * queryの変化を監視して自動で検索を実行する
    * $effect：Svelte5で値の変化を検知する仕組み
    */
@@ -126,6 +140,17 @@
 
 <main>
   <h1>🔍 タイ語検索</h1>
+
+  <!-- 作成エリア：選んだ単語が積み上がっていく場所 -->
+  <div class="composer">
+    <p class="composed-text">
+      {#if composedWords.length === 0}
+        <span class="placeholder">単語を選ぶとここに追加されます</span>
+      {:else}
+        {composedWords.join("")}
+      {/if}
+    </p>
+  </div>
 
   <!-- 検索入力欄 -->
   <div class="search-box">
@@ -145,11 +170,11 @@
   <!-- 検索結果 -->
   <ul class="results">
     {#each results as word}
-      <li class="result-item">
+      <button class="result-item" onclick={() => selectWord(word)}>
         <span class="thai">{word.thai}</span>
         <span class="reading">{word.reading}</span>
         <span class="meaning">{word.meaning}</span>
-      </li>
+      </button>
     {/each}
   </ul>
 </main>
@@ -193,11 +218,16 @@
   }
 
   .result-item {
+    cursor: pointer;
     display: flex;
     flex-direction: column;
-    padding: 12px;
+    width: 100%;
+    background: none;
+    border: none;
     border-bottom: 1px solid #eee;
+    padding: 12px;
     gap: 4px;
+    text-align: left;
   }
 
   .thai {
