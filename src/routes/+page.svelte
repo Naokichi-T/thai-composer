@@ -33,6 +33,12 @@
   // 保存済みの文章リストを格納する配列
   let savedList = $state([]);
 
+  // 翻訳結果を格納する変数
+  let translatedText = $state("");
+
+  // 翻訳中かどうかのフラグ
+  let translating = $state(false);
+
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
    * Supabaseは1回のリクエストで最大1000件しか取得できないため
@@ -235,6 +241,8 @@
    */
   function clearComposed() {
     composedWords = [];
+    // クリア時に翻訳結果もリセットする
+    translatedText = "";
   }
 
   /**
@@ -243,6 +251,34 @@
   function deleteSaved(index) {
     savedList = savedList.filter((_, i) => i !== index);
     persistSavedList();
+  }
+
+  /**
+   * 作成エリアのタイ語を日本語に翻訳する関数
+   * /api/translate エンドポイントを経由してDeepL APIを呼び出す
+   */
+  async function translateComposed() {
+    // 作成エリアが空のときは何もしない
+    if (composedWords.length === 0) return;
+
+    translating = true;
+    translatedText = "";
+
+    const response = await fetch("/api/translate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: composedWords.join("") }),
+    });
+
+    const data = await response.json();
+    translating = false;
+
+    if (data.error) {
+      translatedText = "翻訳に失敗しました";
+      return;
+    }
+
+    translatedText = data.translated;
   }
 
   /**
@@ -278,7 +314,15 @@
     <div class="composer-actions">
       <button class="btn-save" onclick={saveComposed}>保存</button>
       <button class="btn-clear" onclick={clearComposed}>クリア</button>
+      <button class="btn-translate" onclick={translateComposed}>翻訳</button>
     </div>
+
+    <!-- 翻訳結果 -->
+    {#if translating}
+      <p class="translated">翻訳中...</p>
+    {:else if translatedText}
+      <p class="translated">{translatedText}</p>
+    {/if}
   </div>
 
   <!-- 検索入力欄 -->
@@ -468,6 +512,26 @@
 
   .btn-clear:hover {
     background-color: #ddd;
+  }
+
+  .btn-translate {
+    padding: 6px 16px;
+    background-color: #fff;
+    color: #2d2a4a;
+    border: 1px solid #2d2a4a;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .btn-translate:hover {
+    background-color: #e8e7f0;
+  }
+
+  .translated {
+    margin-top: 8px;
+    font-size: 16px;
+    color: #555;
   }
 
   .saved-list {
