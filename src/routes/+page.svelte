@@ -18,8 +18,17 @@
   // エラーメッセージ
   let errorMessage = $state("");
 
+  // 入力欄のDOM要素への参照
+  let inputEl = $state(null);
+
   // 作成エリアに追加された単語を格納する配列
   let composedWords = $state([]);
+
+  // LocalStorageのキー名（保存・読み込みで共通して使う）
+  const STORAGE_KEY = "thai-composer-saved";
+
+  // 保存済みの文章リストを格納する配列
+  let savedList = $state([]);
 
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
@@ -118,10 +127,61 @@
    * 追加後は入力欄をリセットして次の入力に備える
    */
   function selectWord(word) {
-    // 作成エリアに選んだ単語のthai文字列を追加する
     composedWords = [...composedWords, word.thai];
-    // 入力欄をリセットする
     query = "";
+    // DOMの更新が終わってから入力欄にフォーカスを戻す
+    setTimeout(() => {
+      inputEl?.focus();
+    }, 0);
+  }
+
+  /**
+   * LocalStorageから保存済みリストを読み込む関数
+   * ページ表示時に呼び出す
+   */
+  function loadSavedList() {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    // データがあればJSONをパースして配列に変換、なければ空配列
+    savedList = raw ? JSON.parse(raw) : [];
+  }
+
+  /**
+   * 保存済みリストをLocalStorageに書き込む関数
+   * 保存・削除のたびに呼び出す
+   */
+  function persistSavedList() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedList));
+  }
+
+  /**
+   * 作成エリアの内容をLocalStorageに保存する関数
+   * 保存後は作成エリアをリセットする
+   */
+  function saveComposed() {
+    // 作成エリアが空のときは何もしない
+    if (composedWords.length === 0) return;
+
+    // 作成エリアの内容を文字列にして保存リストの先頭に追加する
+    savedList = [composedWords.join(""), ...savedList];
+    persistSavedList();
+
+    // 作成エリアをリセットする
+    composedWords = [];
+  }
+
+  /**
+   * 作成エリアをリセットする関数
+   */
+  function clearComposed() {
+    composedWords = [];
+  }
+
+  /**
+   * 保存済みリストから指定したインデックスの項目を削除する関数
+   */
+  function deleteSaved(index) {
+    savedList = savedList.filter((_, i) => i !== index);
+    persistSavedList();
   }
 
   /**
@@ -135,6 +195,7 @@
   // ページ表示時に全件取得を実行する
   onMount(() => {
     fetchAllWords();
+    loadSavedList();
   });
 </script>
 
@@ -150,11 +211,16 @@
         {composedWords.join("")}
       {/if}
     </p>
+    <!-- 保存・クリアボタン -->
+    <div class="composer-actions">
+      <button class="btn-save" onclick={saveComposed}>保存</button>
+      <button class="btn-clear" onclick={clearComposed}>クリア</button>
+    </div>
   </div>
 
   <!-- 検索入力欄 -->
   <div class="search-box">
-    <input type="text" placeholder="タイ語を入力..." bind:value={query} />
+    <input type="text" placeholder="タイ語を入力..." bind:value={query} bind:this={inputEl} />
   </div>
 
   <!-- ローディング表示 -->
@@ -177,6 +243,19 @@
       </button>
     {/each}
   </ul>
+
+  <!-- 保存済み一覧 -->
+  {#if savedList.length > 0}
+    <div class="saved-list">
+      <h2>保存済み</h2>
+      {#each savedList as item, index}
+        <div class="saved-item">
+          <span class="saved-text">{item}</span>
+          <button class="btn-delete" onclick={() => deleteSaved(index)}>削除</button>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </main>
 
 <style>
@@ -243,5 +322,101 @@
   .meaning {
     font-size: 16px;
     color: #333;
+  }
+
+  .composer {
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 2px solid #2d2a4a;
+    border-radius: 8px;
+    min-height: 60px;
+  }
+
+  .composed-text {
+    font-size: 22px;
+    color: #2d2a4a;
+    margin: 0;
+    word-break: break-all;
+  }
+
+  .placeholder {
+    font-size: 14px;
+    color: #aaa;
+  }
+
+  .composer-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .btn-save {
+    padding: 6px 16px;
+    background-color: #2d2a4a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .btn-save:hover {
+    background-color: #3d3a6a;
+  }
+
+  .btn-clear {
+    padding: 6px 16px;
+    background-color: #eee;
+    color: #333;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .btn-clear:hover {
+    background-color: #ddd;
+  }
+
+  .saved-list {
+    margin-top: 32px;
+  }
+
+  .saved-list h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #333;
+  }
+
+  .saved-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    gap: 8px;
+  }
+
+  .saved-text {
+    font-size: 20px;
+    color: #2d2a4a;
+    word-break: break-all;
+  }
+
+  .btn-delete {
+    padding: 4px 12px;
+    background-color: #fff;
+    color: #999;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  .btn-delete:hover {
+    background-color: #fee;
+    color: #c00;
+    border-color: #c00;
   }
 </style>
