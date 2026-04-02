@@ -39,6 +39,9 @@
   // 翻訳中かどうかのフラグ
   let translating = $state(false);
 
+  // コピー完了メッセージを表示するボタンのkey（nullは非表示）
+  let copiedKey = $state(null);
+
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
    * Supabaseは1回のリクエストで最大1000件しか取得できないため
@@ -282,6 +285,20 @@
   }
 
   /**
+   * 指定したテキストをクリップボードにコピーする関数
+   * コピー後は指定したkeyのボタンに「コピーしました」を2秒間表示する
+   */
+  async function copyText(text, key) {
+    await navigator.clipboard.writeText(text);
+    // コピー完了メッセージを表示する
+    copiedKey = key;
+    // 2秒後にメッセージを消す
+    setTimeout(() => {
+      copiedKey = null;
+    }, 2000);
+  }
+
+  /**
    * queryの変化を監視して自動で検索を実行する
    * $effect：Svelte5で値の変化を検知する仕組み
    */
@@ -315,6 +332,9 @@
       <button class="btn-save" onclick={saveComposed}>保存</button>
       <button class="btn-clear" onclick={clearComposed}>クリア</button>
       <button class="btn-translate" onclick={translateComposed}>翻訳</button>
+      <button class="btn-copy" class:copied={copiedKey === "composer"} onclick={() => copyText(composedWords.join(""), "composer")}>
+        {copiedKey === "composer" ? "✅ コピーしました" : "コピー"}
+      </button>
     </div>
 
     <!-- 翻訳結果 -->
@@ -383,7 +403,12 @@
       {#each savedList as item, index}
         <div class="saved-item">
           <span class="saved-text">{item}</span>
-          <button class="btn-delete" onclick={() => deleteSaved(index)}>削除</button>
+          <div class="saved-actions">
+            <button class="btn-copy" class:copied={copiedKey === index} onclick={() => copyText(item, index)}>
+              {copiedKey === index ? "✅ コピーしました" : "コピー"}
+            </button>
+            <button class="btn-delete" onclick={() => deleteSaved(index)}>削除</button>
+          </div>
         </div>
       {/each}
     </div>
@@ -526,6 +551,44 @@
 
   .btn-translate:hover {
     background-color: #e8e7f0;
+  }
+
+  .btn-copy {
+    padding: 6px 16px;
+    background-color: #fff;
+    color: #555;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .btn-copy:hover {
+    background-color: #f5f5f5;
+  }
+
+  /* コピー完了メッセージのフェードアウトアニメーション */
+  @keyframes fadeOut {
+    0% {
+      opacity: 1;
+    }
+    70% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+
+  .btn-copy.copied {
+    animation: fadeOut 2s ease forwards;
+    color: #2d2a4a;
+    border-color: #2d2a4a;
+  }
+
+  .saved-actions {
+    display: flex;
+    gap: 8px;
   }
 
   .translated {
