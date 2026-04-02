@@ -46,7 +46,8 @@
     while (true) {
       const { data, error } = await supabase
         .from("words")
-        .select("thai, reading, meaning, frequency, formality")
+        .select("thai, reading, meaning, frequency, formality, thai_normalized, no")
+        .order("no", { ascending: true })
         // from〜toの範囲で取得（ページネーション）
         .range(from, from + batchSize - 1);
 
@@ -72,43 +73,62 @@
   }
 
   /**
-   * タイ語の声調記号を除去して正規化する関数
-   * 声調記号：่ ้ ๊ ๋ （Unicodeの特定範囲の文字）
-   * これを除去することで「เก่า」と「เกา」を同じとみなせる
+   * 入力文字列をthai_normalizedと同じルールで正規化する関数
+   * 声調記号の除去 ＋ 同音字の統一をする（母音記号は残す）
    */
-  function removeToneMarks(str) {
-    // タイ語の声調記号のUnicode範囲: \u0E48-\u0E4B
-    return str.replace(/[\u0E48-\u0E4B]/g, "");
+  function normalizeInput(str) {
+    // ① 声調記号のみ除去: ่ ้ ๊ ๋
+    str = str.replace(/[่้๊๋]/g, "");
+
+    // ② 同音字を統一
+    const replacements = {
+      ฎ: "ด",
+      ฏ: "ต",
+      ฐ: "ถ",
+      ศ: "ส",
+      ษ: "ส",
+      ฆ: "ค",
+      ฌ: "ช",
+      ฑ: "ท",
+      ฒ: "ท",
+      ธ: "ท",
+      ภ: "พ",
+      ณ: "น",
+      ญ: "ย",
+      ฬ: "ล",
+    };
+    for (const [original, replacement] of Object.entries(replacements)) {
+      str = str.replaceAll(original, replacement);
+    }
+
+    return str;
   }
 
   /**
-   * サブシーケンス検索：inputの文字がtargetに順番通りに含まれるか判定する関数
-   * 例: input="ขบค" target="ขอบคุณ" → true
-   * 例: input="ขบค" target="กินข้าว" → false
+   * サブシーケンス検索：inputの正規化済み文字がtargetのthai_normalizedに
+   * 順番通りに含まれるか判定する関数
+   * 例: input="ครบ" target.thai_normalized="ครบ" → true
    */
   function isSubsequence(input, target) {
-    // 声調記号を除去してから比較する
-    const normalizedInput = removeToneMarks(input);
-    const normalizedTarget = removeToneMarks(target);
+    // 入力側も同じルールで正規化する
+    const normalizedInput = normalizeInput(input);
+    const normalizedTarget = target.thai_normalized ?? "";
 
-    // inputの何文字目まで一致したかを追跡するインデックス
     let inputIndex = 0;
 
     for (let i = 0; i < normalizedTarget.length; i++) {
-      // targetの文字とinputの現在の文字が一致したら次のinputの文字へ進む
       if (normalizedTarget[i] === normalizedInput[inputIndex]) {
         inputIndex++;
       }
-      // inputの全文字が見つかったらtrue
       if (inputIndex === normalizedInput.length) return true;
     }
 
-    // 最後まで見つからなかったらfalse
     return false;
   }
 
   /**
    * queryを使ってallWordsをサブシーケンス検索する関数
+   * 完全一致・前方一致・その他の順にスコアリングして並び替える
    * 最大30件に絞ってresultsに格納する
    */
   function searchWords(q) {
@@ -118,8 +138,46 @@
       return;
     }
 
-    // allWordsの中からサブシーケンス一致するものだけ抽出して最大30件にする
-    results = allWords.filter((word) => isSubsequence(q, word.thai)).slice(0, 30);
+    // 声調記号を除去した入力値（比較用）
+    const normalizedQ = normalizeInput(q);
+
+    /**
+     * 単語のスコアを計算する関数
+     */
+    function getScore(word) {
+      const normalizedThai = word.thai_normalized ?? "";
+      // 声調記号ありで完全一致
+      if (word.thai === q) return 4;
+      // 正規化後に完全一致
+      if (normalizedThai === normalizedQ) return 3;
+      // 正規化後に前方一致
+      if (normalizedThai.startsWith(normalizedQ)) return 2;
+      // その他のサブシーケンス一致
+      return 1;
+    }
+
+    results = allWords
+      // サブシーケンス一致するものだけ抽出する
+      .filter((word) => isSubsequence(q, word))
+      // スコアの高い順に並び替える
+      // ▼ 方法A：スコア優先＋文字数の近さ順（元の方法）
+      // .sort((a, b) => {
+      //   const scoreDiff = getScore(b) - getScore(a);
+      //   if (scoreDiff !== 0) return scoreDiff;
+      //   const aDiff = Math.abs(a.thai.length - q.length);
+      //   const bDiff = Math.abs(b.thai.length - q.length);
+      //   return aDiff - bDiff;
+      // })
+
+      // ▼ 方法B：文字数の近さのみで並べる（スコアなし）
+      .sort((a, b) => {
+        const aDiff = Math.abs(a.thai.length - q.length);
+        const bDiff = Math.abs(b.thai.length - q.length);
+        if (aDiff !== bDiff) return aDiff - bDiff;
+        return a.thai.length - b.thai.length;
+      })
+      // 最大30件にする
+      .slice(0, 30);
   }
 
   /**
@@ -196,11 +254,13 @@
   onMount(() => {
     fetchAllWords();
     loadSavedList();
+    // ページ表示時に入力欄にフォーカスを当てる
+    inputEl?.focus();
   });
 </script>
 
 <main>
-  <h1>🔍 タイ語検索</h1>
+  <h1>📝 タイ語ライター</h1>
 
   <!-- 作成エリア：選んだ単語が積み上がっていく場所 -->
   <div class="composer">
@@ -220,7 +280,19 @@
 
   <!-- 検索入力欄 -->
   <div class="search-box">
-    <input type="text" placeholder="タイ語を入力..." bind:value={query} bind:this={inputEl} />
+    <input
+      type="text"
+      placeholder="タイ語を入力..."
+      bind:value={query}
+      bind:this={inputEl}
+      onkeydown={(e) => {
+        // Enterキーを押したら入力内容をそのまま追加する
+        if (e.key === "Enter" && query.length > 0) {
+          composedWords = [...composedWords, query];
+          query = "";
+        }
+      }}
+    />
   </div>
 
   <!-- ローディング表示 -->
