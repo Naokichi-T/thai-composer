@@ -170,7 +170,7 @@
 
     results = allWords
       // サブシーケンス一致するものだけ抽出する
-      .filter((word) => isSubsequence(q, word))
+      // .filter((word) => isSubsequence(q, word))
       // スコアの高い順に並び替える
       // ▼ 方法A：スコア優先＋文字数の近さ順（元の方法）
       // .sort((a, b) => {
@@ -180,6 +180,16 @@
       //   const bDiff = Math.abs(b.thai.length - q.length);
       //   return aDiff - bDiff;
       // })
+
+      // ▼ 変更後（カンマ区切りで複数の正規化形に対応）
+      // thai_normalizedをカンマで分割して、どれか1つでもヒットすればOK
+      // 例: "กุยแจ,กุนแจ" → どちらかにマッチすれば検索結果に出る
+      .filter((word) => {
+        // カンマで分割して複数の正規化形を配列にする（1つだけの場合も配列になる）
+        const normalizedVariants = (word.thai_normalized ?? "").split(",");
+        // いずれか1つにサブシーケンス一致すればtrueを返す
+        return normalizedVariants.some((variant) => isSubsequence(q, { ...word, thai_normalized: variant.trim() }));
+      })
 
       // ▼ 方法B：文字数の近さのみで並べる（スコアなし）
       .sort((a, b) => {
