@@ -479,20 +479,19 @@
       bind:value={query}
       bind:this={inputEl}
       onkeydown={(e) => {
-        if (e.key === "Tab") {
-          // Tabキー：ブラウザ本来のフォーカス移動をさせない
+        if (e.key === "ArrowLeft") {
+          // ←キー：前のモードに戻る（最初なら最後に戻る）
           e.preventDefault();
-          // タブの順番リスト
           const modes = ["thaiA", "thaiB", "reading", "japanese"];
           const currentIndex = modes.indexOf(searchMode);
-          if (e.shiftKey) {
-            // Shift+Tab：前のモードに戻る（最初なら最後に戻る）
-            searchMode = modes[(currentIndex - 1 + modes.length) % modes.length];
-          } else {
-            // Tab：次のモードに進む（最後なら最初に戻る）
-            searchMode = modes[(currentIndex + 1) % modes.length];
-          }
-          // モード切り替え時に選択中の候補だけリセットする
+          searchMode = modes[(currentIndex - 1 + modes.length) % modes.length];
+          selectedIndex = -1;
+        } else if (e.key === "ArrowRight") {
+          // →キー：次のモードに進む（最後なら最初に戻る）
+          e.preventDefault();
+          const modes = ["thaiA", "thaiB", "reading", "japanese"];
+          const currentIndex = modes.indexOf(searchMode);
+          searchMode = modes[(currentIndex + 1) % modes.length];
           selectedIndex = -1;
         } else if (e.key === "ArrowDown") {
           // ↓キー：次の候補に移動（最後の候補を超えたら止まる）
