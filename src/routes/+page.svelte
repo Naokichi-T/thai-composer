@@ -78,8 +78,9 @@
     while (true) {
       const { data, error } = await supabase
         .from("words")
-        .select("thai, reading, meaning, frequency, formality, thai_normalized, reading_normalized, no")
-        .order("no", { ascending: true })
+        .select("thai, reading, meaning, frequency, formality, thai_normalized, reading_normalized, no, url_no")
+        .order("frequency", { ascending: false }) // 頻出度の降順
+        .order("url_no", { ascending: true }) // 同じ頻出度の中はurl_noの昇順
         // from〜toの範囲で取得（ページネーション）
         .range(from, from + batchSize - 1);
 
