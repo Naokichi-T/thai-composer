@@ -270,9 +270,9 @@
     // 記憶したカーソル位置、なければ末尾を挿入位置にする
     const pos = savedCursorPos ?? composedText.length;
     // カーソル位置に単語を挿入する
-    composedText = composedText.slice(0, pos) + word.thai + composedText.slice(pos);
-    // 次の挿入位置を挿入した単語の末尾に更新する
-    savedCursorPos = pos + word.thai.length;
+    composedText = composedText.slice(0, pos) + query + composedText.slice(pos);
+    // 次の挿入位置をtextareaの末尾に更新する
+    savedCursorPos = composedText.length;
     query = "";
     selectedIndex = -1;
     setTimeout(() => {
@@ -453,8 +453,10 @@
             // 候補が選択中ならその候補を確定する
             selectWord(results[selectedIndex]);
           } else if (query.length > 0) {
-            // 未選択ならそのまま追加する
-            composedWords = [...composedWords, query];
+            // 未選択ならそのままカーソル位置に追加する
+            const pos = savedCursorPos ?? composedText.length;
+            composedText = composedText.slice(0, pos) + query + composedText.slice(pos);
+            savedCursorPos = pos + query.length;
             query = "";
           }
         }
@@ -481,8 +483,6 @@
       class:active={searchMode === "thaiA"}
       onclick={() => {
         searchMode = "thaiA";
-        query = "";
-        results = [];
       }}>タイ語A</button
     >
     <button
@@ -490,8 +490,6 @@
       class:active={searchMode === "thaiB"}
       onclick={() => {
         searchMode = "thaiB";
-        query = "";
-        results = [];
       }}>タイ語B</button
     >
     <button
@@ -499,8 +497,6 @@
       class:active={searchMode === "reading"}
       onclick={() => {
         searchMode = "reading";
-        query = "";
-        results = [];
       }}>読み方</button
     >
     <button
@@ -508,8 +504,6 @@
       class:active={searchMode === "japanese"}
       onclick={() => {
         searchMode = "japanese";
-        query = "";
-        results = [];
       }}>日本語</button
     >
   </div>
