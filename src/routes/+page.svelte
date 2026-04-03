@@ -212,18 +212,28 @@
       return 1;
     }
 
+    // ▼ タイ語B：スコア優先＋文字数の近さ順で並べる（方法A）
+    if (searchMode === "thaiB") {
+      results = allWords
+        .filter((word) => {
+          const normalizedVariants = (word.thai_normalized ?? "").split(",");
+          return normalizedVariants.some((variant) => isSubsequence(q, { ...word, thai_normalized: variant.trim() }));
+        })
+        .sort((a, b) => {
+          // スコアの高い順に並べる
+          const scoreDiff = getScore(b) - getScore(a);
+          if (scoreDiff !== 0) return scoreDiff;
+          // スコアが同じなら入力文字数との差が小さい順
+          const aDiff = Math.abs(a.thai.length - q.length);
+          const bDiff = Math.abs(b.thai.length - q.length);
+          return aDiff - bDiff;
+        })
+        .slice(0, 30);
+      selectedIndex = -1;
+      return;
+    }
+
     results = allWords
-      // サブシーケンス一致するものだけ抽出する
-      // .filter((word) => isSubsequence(q, word))
-      // スコアの高い順に並び替える
-      // ▼ 方法A：スコア優先＋文字数の近さ順（元の方法）
-      // .sort((a, b) => {
-      //   const scoreDiff = getScore(b) - getScore(a);
-      //   if (scoreDiff !== 0) return scoreDiff;
-      //   const aDiff = Math.abs(a.thai.length - q.length);
-      //   const bDiff = Math.abs(b.thai.length - q.length);
-      //   return aDiff - bDiff;
-      // })
 
       // ▼ 変更後（カンマ区切りで複数の正規化形に対応）
       // thai_normalizedをカンマで分割して、どれか1つでもヒットすればOK
