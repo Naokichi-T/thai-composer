@@ -599,7 +599,7 @@
     <!-- 縦一覧表示 -->
     <ul class="results">
       {#each results as word, i}
-        <button class="result-item" class:selected={i === selectedIndex} class:exact={word.thai === query || word.thai_normalized === query} onclick={() => selectWord(word)}>
+        <button class="result-item" class:selected={i === selectedIndex} class:exact={word.thai === query} onclick={() => selectWord(word)}>
           <span class="thai">{word.thai}</span>
           <span class="reading">{word.reading}</span>
           <span class="meaning">{word.meaning}</span>
@@ -610,7 +610,7 @@
     <!-- 横並びコンパクト表示 -->
     <ul class="results-compact">
       {#each results as word, i}
-        <button class="result-item-compact" class:selected={i === selectedIndex} class:exact={word.thai === query || word.thai_normalized === query} onclick={() => selectWord(word)}>
+        <button class="result-item-compact" class:selected={i === selectedIndex} class:exact={word.thai === query} onclick={() => selectWord(word)}>
           <span class="thai">{word.thai}</span>
           <span class="reading">{word.reading}</span>
           <span class="meaning">{word.meaning}</span>
