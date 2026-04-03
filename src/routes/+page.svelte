@@ -501,13 +501,13 @@
           const currentIndex = modes.indexOf(searchMode);
           searchMode = modes[(currentIndex + 1) % modes.length];
           selectedIndex = -1;
-        } else if (e.key === "Tab" && !e.shiftKey && results.length > 0) {
-          // Tabキー：次の候補に移動（最後の候補を超えたら止まる）
-          e.preventDefault(); // ページのフォーカス移動を止める
+        } else if (((e.key === "Tab" && !e.shiftKey) || e.key === "ArrowDown") && results.length > 0) {
+          // Tab または ↓キー：次の候補に移動（最後の候補を超えたら止まる）
+          e.preventDefault(); // ページのフォーカス移動 / スクロールを止める
           selectedIndex = Math.min(selectedIndex + 1, results.length - 1);
-        } else if (e.key === "Tab" && e.shiftKey && results.length > 0) {
-          // Shift+Tabキー：前の候補に移動（-1で未選択に戻る）
-          e.preventDefault(); // ページのフォーカス移動を止める
+        } else if (((e.key === "Tab" && e.shiftKey) || e.key === "ArrowUp") && results.length > 0) {
+          // Shift+Tab または ↑キー：前の候補に移動（-1で未選択に戻る）
+          e.preventDefault(); // ページのフォーカス移動 / スクロールを止める
           selectedIndex = Math.max(selectedIndex - 1, -1);
         } else if (e.key === "Enter") {
           if (selectedIndex >= 0 && results[selectedIndex]) {
