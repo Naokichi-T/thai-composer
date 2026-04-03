@@ -31,6 +31,9 @@
   // textareaのカーソル位置を記憶する変数（フォーカスが外れたときに保存する）
   let savedCursorPos = $state(null);
 
+  // 検索結果の表示モード（"list"=縦一覧 / "compact"=横並び）
+  let resultViewMode = $state("list");
+
   // 作成エリアのテキスト（直接編集可能な文字列）
   let composedText = $state("");
 
@@ -521,15 +524,42 @@
   {/if}
 
   <!-- 検索結果 -->
-  <ul class="results">
-    {#each results as word, i}
-      <button class="result-item" class:selected={i === selectedIndex} onclick={() => selectWord(word)}>
-        <span class="thai">{word.thai}</span>
-        <span class="reading">{word.reading}</span>
-        <span class="meaning">{word.meaning}</span>
-      </button>
-    {/each}
-  </ul>
+  <!-- 検索結果 -->
+  <div class="results-header">
+    <span class="results-count">{results.length > 0 ? `${results.length}件` : ""}</span>
+    {#if results.length > 0}
+      <button
+        class="btn-view-toggle"
+        onclick={() => {
+          resultViewMode = resultViewMode === "list" ? "compact" : "list";
+        }}>{resultViewMode === "list" ? "コンパクト" : "一覧"}</button
+      >
+    {/if}
+  </div>
+
+  {#if resultViewMode === "list"}
+    <!-- 縦一覧表示 -->
+    <ul class="results">
+      {#each results as word, i}
+        <button class="result-item" class:selected={i === selectedIndex} onclick={() => selectWord(word)}>
+          <span class="thai">{word.thai}</span>
+          <span class="reading">{word.reading}</span>
+          <span class="meaning">{word.meaning}</span>
+        </button>
+      {/each}
+    </ul>
+  {:else}
+    <!-- 横並びコンパクト表示 -->
+    <ul class="results-compact">
+      {#each results as word, i}
+        <button class="result-item-compact" class:selected={i === selectedIndex} onclick={() => selectWord(word)}>
+          <span class="thai">{word.thai}</span>
+          <span class="reading">{word.reading}</span>
+          <span class="meaning">{word.meaning}</span>
+        </button>
+      {/each}
+    </ul>
+  {/if}
 
   <!-- 保存済み一覧 -->
   {#if savedList.length > 0}
@@ -622,6 +652,78 @@
   .error {
     color: red;
     margin-top: 12px;
+  }
+
+  /* 検索結果ヘッダー：件数とトグルボタンを横並びに */
+  .results-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+  }
+
+  .results-count {
+    font-size: 12px;
+    color: #aaa;
+  }
+
+  /* 表示切り替えボタン */
+  .btn-view-toggle {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: #888;
+    cursor: pointer;
+    padding: 2px 6px;
+    text-decoration: underline;
+  }
+
+  /* コンパクト表示：横並びにする */
+  .results-compact {
+    list-style: none;
+    padding: 0;
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .result-item-compact {
+    cursor: pointer;
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    background: none;
+    border: none;
+    border-bottom: 1px solid #eee;
+    padding: 8px;
+    text-align: left;
+  }
+
+  .result-item-compact.selected {
+    background-color: #e8e7f0;
+  }
+
+  .result-item-compact .thai {
+    font-size: 18px;
+    color: #2d2a4a;
+    white-space: nowrap;
+  }
+
+  .result-item-compact .reading {
+    font-size: 12px;
+    color: #888;
+    white-space: nowrap;
+  }
+
+  .result-item-compact .meaning {
+    font-size: 13px;
+    color: #333;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .results {
