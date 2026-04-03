@@ -276,7 +276,7 @@
     // 記憶したカーソル位置、なければ末尾を挿入位置にする
     const pos = savedCursorPos ?? composedText.length;
     // カーソル位置に単語を挿入する
-    composedText = composedText.slice(0, pos) + query + composedText.slice(pos);
+    composedText = composedText.slice(0, pos) + word.thai + composedText.slice(pos);
     // 次の挿入位置をtextareaの末尾に更新する
     savedCursorPos = composedText.length;
     query = "";
@@ -444,7 +444,7 @@
   <div class="search-box">
     <input
       type="text"
-      placeholder={searchMode === "thaiA" ? "タイ語を入力..." : searchMode === "thaiB" ? "タイ語を入力（B）..." : searchMode === "reading" ? "読み方を入力（例: sawasdii）..." : "日本語を入力..."}
+      placeholder={searchMode === "thaiA" ? "タイ語を入力..." : searchMode === "thaiB" ? "タイ語を入力（B）..." : searchMode === "reading" ? "読み方を入力..." : "日本語を入力..."}
       bind:value={query}
       bind:this={inputEl}
       onkeydown={(e) => {
