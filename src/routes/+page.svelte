@@ -189,8 +189,33 @@
       if (!fuseReading) return;
       // Fuse.jsで検索する（結果は { item, score } の配列）
       const fuseResults = fuseReading.search(q);
-      // スコアの良い順に30件に絞る（Fuse.jsはデフォルトでスコア順）
-      results = fuseResults.slice(0, 30).map((r) => r.item);
+
+      /**
+       * 読み方検索用のスコアを計算する関数
+       * 完全一致・前方一致を優先してFuse.jsのスコアを上書きする
+       */
+      function getReadingScore(normalized) {
+        // 完全一致
+        if (normalized === q) return 4;
+        // 前方一致
+        if (normalized.startsWith(q)) return 3;
+        // 部分一致（qがnormalizedに含まれる）
+        if (normalized.includes(q)) return 2;
+        // その他（Fuse.jsのファジーマッチ）
+        return 1;
+      }
+
+      results = fuseResults
+        .map((r) => ({
+          item: r.item,
+          // Fuse.jsのスコア（0が完全一致、1が最悪）を反転して加算する
+          score: getReadingScore(r.item.reading_normalized ?? "") + (1 - (r.score ?? 1)),
+        }))
+        // スコアの高い順に並び替える
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 30)
+        .map((r) => r.item);
+
       selectedIndex = -1;
       return;
     }
