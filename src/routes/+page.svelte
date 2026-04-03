@@ -2,6 +2,7 @@
   // Supabaseクライアントを読み込む
   import { supabase } from "$lib/supabase.js";
   import { onMount } from "svelte";
+  import Fuse from "fuse.js";
 
   // 追加する1行
   let allWords = $state([]);
@@ -46,6 +47,9 @@
   // "thaiA"=タイ語A / "thaiB"=タイ語B（未実装）/ "reading"=読み方 / "japanese"=日本語
   let searchMode = $state("thaiA");
 
+  // Fuse.jsのインスタンスを格納する変数（読み方検索に使う）
+  let fuseReading = $state(null);
+
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
    * Supabaseは1回のリクエストで最大1000件しか取得できないため
@@ -62,7 +66,7 @@
     while (true) {
       const { data, error } = await supabase
         .from("words")
-        .select("thai, reading, meaning, frequency, formality, thai_normalized, no")
+        .select("thai, reading, meaning, frequency, formality, thai_normalized, reading_normalized, no")
         .order("no", { ascending: true })
         // from〜toの範囲で取得（ページネーション）
         .range(from, from + batchSize - 1);
@@ -85,6 +89,20 @@
     }
 
     allWords = allData;
+
+    // Fuse.jsのインスタンスを初期化する（読み方検索用）
+    // reading_normalizedカラムを対象にファジー検索する
+    fuseReading = new Fuse(allData, {
+      // 検索対象のキー
+      keys: ["reading_normalized"],
+      // しきい値：0に近いほど厳密、1に近いほど曖昧（0.4くらいがちょうどいい）
+      threshold: 0.4,
+      // 検索結果にスコアを含める
+      includeScore: true,
+      // 文字列のどこにでもマッチする（前方一致でなくてもOK）
+      ignoreLocation: true,
+    });
+
     loading = false;
   }
 
@@ -150,6 +168,28 @@
   function searchWords(q) {
     if (!q.trim()) {
       results = [];
+      selectedIndex = -1;
+      return;
+    }
+
+    // 読み方モードの場合はFuse.jsでファジー検索する
+    if (searchMode === "reading") {
+      if (!fuseReading) return;
+      // Fuse.jsで検索する（結果は { item, score } の配列）
+      const fuseResults = fuseReading.search(q);
+      // スコアの良い順に30件に絞る（Fuse.jsはデフォルトでスコア順）
+      results = fuseResults.slice(0, 30).map((r) => r.item);
+      selectedIndex = -1;
+      return;
+    }
+
+    // 日本語モードの場合はmeaningカラムで部分一致検索する
+    if (searchMode === "japanese") {
+      results = allWords
+        // meaningに入力文字列が含まれるものだけ抽出する
+        .filter((word) => word.meaning?.includes(q))
+        // 最大30件にする
+        .slice(0, 30);
       selectedIndex = -1;
       return;
     }
