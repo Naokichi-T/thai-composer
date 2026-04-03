@@ -373,6 +373,18 @@
         }
       }}
     />
+    {#if query.length > 0}
+      <button
+        class="btn-clear-input"
+        onclick={() => {
+          // 入力欄をクリアしてフォーカスを戻す
+          query = "";
+          results = [];
+          selectedIndex = -1;
+          inputEl?.focus();
+        }}>✕</button
+      >
+    {/if}
   </div>
 
   <!-- ローディング表示 -->
@@ -428,13 +440,31 @@
     margin-bottom: 16px;
   }
 
+  /* 検索欄全体：inputと✕ボタンを横並びにする */
+  .search-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   .search-box input {
-    width: 100%;
+    flex: 1; /* 残りの横幅をすべてinputに使う */
     padding: 10px 14px;
     font-size: 18px;
     border: 2px solid #ccc;
     border-radius: 8px;
     box-sizing: border-box;
+  }
+
+  /* ✕ボタン：目立たなくシンプルに */
+  .btn-clear-input {
+    background: none;
+    border: none;
+    color: #bbb;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 6px;
+    line-height: 1;
   }
 
   .loading {
