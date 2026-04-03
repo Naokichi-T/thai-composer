@@ -42,6 +42,10 @@
   // コピー完了メッセージを表示するボタンのkey（nullは非表示）
   let copiedKey = $state(null);
 
+  // 現在選択中の検索モード
+  // "thaiA"=タイ語A / "thaiB"=タイ語B（未実装）/ "reading"=読み方 / "japanese"=日本語
+  let searchMode = $state("thaiA");
+
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
    * Supabaseは1回のリクエストで最大1000件しか取得できないため
@@ -359,11 +363,21 @@
   <div class="search-box">
     <input
       type="text"
-      placeholder="タイ語を入力..."
+      placeholder={searchMode === "thaiA" ? "タイ語を入力..." : searchMode === "thaiB" ? "タイ語を入力（B）..." : searchMode === "reading" ? "読み方を入力（例: sawasdii）..." : "日本語を入力..."}
       bind:value={query}
       bind:this={inputEl}
       onkeydown={(e) => {
-        if (e.key === "ArrowDown") {
+        if (e.key === "Tab") {
+          // Tabキー：ブラウザ本来のフォーカス移動をさせない
+          e.preventDefault();
+          // タブの順番リスト（最後の次は最初に戻る）
+          const modes = ["thaiA", "thaiB", "reading", "japanese"];
+          const currentIndex = modes.indexOf(searchMode);
+          // 次のモードに切り替える（最後なら0に戻る）
+          searchMode = modes[(currentIndex + 1) % modes.length];
+          // モード切り替え時に入力欄と検索結果をリセットする
+          selectedIndex = -1;
+        } else if (e.key === "ArrowDown") {
           // ↓キー：次の候補に移動（最後の候補を超えたら止まる）
           e.preventDefault();
           selectedIndex = Math.min(selectedIndex + 1, results.length - 1);
@@ -396,6 +410,48 @@
       >
     {/if}
   </div>
+
+  <!-- 検索モード切り替えタブ -->
+  <div class="search-tabs">
+    <button
+      class="tab"
+      class:active={searchMode === "thaiA"}
+      onclick={() => {
+        searchMode = "thaiA";
+        query = "";
+        results = [];
+      }}>タイ語A</button
+    >
+    <button
+      class="tab"
+      class:active={searchMode === "thaiB"}
+      onclick={() => {
+        searchMode = "thaiB";
+        query = "";
+        results = [];
+      }}>タイ語B</button
+    >
+    <button
+      class="tab"
+      class:active={searchMode === "reading"}
+      onclick={() => {
+        searchMode = "reading";
+        query = "";
+        results = [];
+      }}>読み方</button
+    >
+    <button
+      class="tab"
+      class:active={searchMode === "japanese"}
+      onclick={() => {
+        searchMode = "japanese";
+        query = "";
+        results = [];
+      }}>日本語</button
+    >
+  </div>
+
+  <!-- 検索入力欄 -->
 
   <!-- ローディング表示 -->
   {#if loading}
@@ -450,6 +506,30 @@
     margin-bottom: 16px;
   }
 
+  /* 検索モード切り替えタブ */
+  .search-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .tab {
+    flex: 1;
+    padding: 6px 0;
+    font-size: 13px;
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #888;
+  }
+
+  /* アクティブなタブのスタイル */
+  .tab.active {
+    background-color: #2d2a4a;
+    color: white;
+    border-color: #2d2a4a;
+  }
   /* 検索欄全体：inputと✕ボタンを横並びにする */
   .search-box {
     display: flex;
