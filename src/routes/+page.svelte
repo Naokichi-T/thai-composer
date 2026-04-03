@@ -31,7 +31,7 @@
   // textareaのカーソル位置を記憶する変数（フォーカスが外れたときに保存する）
   let savedCursorPos = $state(null);
 
-  // 検索結果の表示モード（"list"=縦一覧 / "compact"=横並び）
+  // 検索結果の表示モード（onMountで復元する、初期値は"list"）
   let resultViewMode = $state("list");
 
   // 作成エリアのテキスト（直接編集可能な文字列）
@@ -52,12 +52,15 @@
   // コピー完了メッセージを表示するボタンのkey（nullは非表示）
   let copiedKey = $state(null);
 
-  // 現在選択中の検索モード
-  // "thaiA"=タイ語A / "thaiB"=タイ語B（未実装）/ "reading"=読み方 / "japanese"=日本語
+  // 現在選択中の検索モード（onMountで復元する、初期値は"thaiA"）
+  // "thaiA"=タイ語A / "thaiB"=タイ語B / "reading"=読み方 / "japanese"=日本語
   let searchMode = $state("thaiA");
 
   // Fuse.jsのインスタンスを格納する変数（読み方検索に使う）
   let fuseReading = $state(null);
+
+  // onMount完了後かどうかのフラグ（初期化前の$effectの誤保存を防ぐ）
+  let mounted = $state(false);
 
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
@@ -374,12 +377,29 @@
     searchWords(query);
   });
 
+  // searchModeが変わったらLocalStorageに保存する（mount後のみ）
+  $effect(() => {
+    if (!mounted) return;
+    localStorage.setItem("searchMode", searchMode);
+  });
+
+  // resultViewModeが変わったらLocalStorageに保存する（mount後のみ）
+  $effect(() => {
+    if (!mounted) return;
+    localStorage.setItem("resultViewMode", resultViewMode);
+  });
+
   // ページ表示時に全件取得を実行する
   onMount(() => {
     fetchAllWords();
     loadSavedList();
+    // LocalStorageから設定を復元する
+    searchMode = localStorage.getItem("searchMode") ?? "thaiA";
+    resultViewMode = localStorage.getItem("resultViewMode") ?? "list";
     // ページ表示時に入力欄にフォーカスを当てる
     inputEl?.focus();
+    // 初期化完了フラグを立てる
+    mounted = true;
   });
 </script>
 
