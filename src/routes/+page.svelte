@@ -377,6 +377,12 @@
     searchWords(query);
   });
 
+  // composedTextが変わったら翻訳結果をリセットする
+  $effect(() => {
+    composedText;
+    translatedText = "";
+  });
+
   // searchModeが変わったらLocalStorageに保存する（mount後のみ）
   $effect(() => {
     if (!mounted) return;
