@@ -494,13 +494,13 @@
           const currentIndex = modes.indexOf(searchMode);
           searchMode = modes[(currentIndex + 1) % modes.length];
           selectedIndex = -1;
-        } else if (e.key === "ArrowDown") {
-          // ↓キー：次の候補に移動（最後の候補を超えたら止まる）
-          e.preventDefault();
+        } else if (e.key === "Tab" && !e.shiftKey && results.length > 0) {
+          // Tabキー：次の候補に移動（最後の候補を超えたら止まる）
+          e.preventDefault(); // ページのフォーカス移動を止める
           selectedIndex = Math.min(selectedIndex + 1, results.length - 1);
-        } else if (e.key === "ArrowUp") {
-          // ↑キー：前の候補に移動（-1で未選択に戻る）
-          e.preventDefault();
+        } else if (e.key === "Tab" && e.shiftKey && results.length > 0) {
+          // Shift+Tabキー：前の候補に移動（-1で未選択に戻る）
+          e.preventDefault(); // ページのフォーカス移動を止める
           selectedIndex = Math.max(selectedIndex - 1, -1);
         } else if (e.key === "Enter") {
           if (selectedIndex >= 0 && results[selectedIndex]) {
@@ -592,7 +592,7 @@
     <!-- 縦一覧表示 -->
     <ul class="results">
       {#each results as word, i}
-        <button class="result-item" class:selected={i === selectedIndex} onclick={() => selectWord(word)}>
+        <button class="result-item" class:selected={i === selectedIndex} class:exact={word.thai === query || word.thai_normalized === query} onclick={() => selectWord(word)}>
           <span class="thai">{word.thai}</span>
           <span class="reading">{word.reading}</span>
           <span class="meaning">{word.meaning}</span>
@@ -603,7 +603,7 @@
     <!-- 横並びコンパクト表示 -->
     <ul class="results-compact">
       {#each results as word, i}
-        <button class="result-item-compact" class:selected={i === selectedIndex} onclick={() => selectWord(word)}>
+        <button class="result-item-compact" class:selected={i === selectedIndex} class:exact={word.thai === query || word.thai_normalized === query} onclick={() => selectWord(word)}>
           <span class="thai">{word.thai}</span>
           <span class="reading">{word.reading}</span>
           <span class="meaning">{word.meaning}</span>
@@ -798,6 +798,11 @@
 
   .result-item.selected {
     background-color: #e8e7f0;
+  }
+
+  .result-item.exact .thai,
+  .result-item-compact.exact .thai {
+    color: #c0392b;
   }
 
   .thai {
