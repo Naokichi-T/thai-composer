@@ -396,6 +396,10 @@
         savedCursorPos = composerEl?.selectionStart ?? null;
       }}
     ></textarea>
+    <!-- 挿入位置の表示：savedCursorPosがあるときだけ表示 -->
+    {#if savedCursorPos !== null}
+      <p class="cursor-hint">挿入位置: {composedText.slice(0, savedCursorPos)}|</p>
+    {/if}
     <div class="composer-actions">
       <button class="btn-save" onclick={saveComposed}>保存</button>
       <button class="btn-clear" onclick={clearComposed}>クリア</button>
@@ -670,6 +674,14 @@
     border: 2px solid #2d2a4a;
     border-radius: 8px;
     min-height: 60px;
+  }
+
+  /* 挿入位置のヒント表示 */
+  .cursor-hint {
+    font-size: 16px;
+    color: #aaa;
+    margin: 2px 0 0 0;
+    word-break: break-all;
   }
 
   .composed-text {
