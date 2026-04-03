@@ -25,8 +25,14 @@
   // 入力欄のDOM要素への参照
   let inputEl = $state(null);
 
-  // 作成エリアに追加された単語を格納する配列
-  let composedWords = $state([]);
+  // 作成エリア（textarea）のDOM要素への参照
+  let composerEl = $state(null);
+
+  // textareaのカーソル位置を記憶する変数（フォーカスが外れたときに保存する）
+  let savedCursorPos = $state(null);
+
+  // 作成エリアのテキスト（直接編集可能な文字列）
+  let composedText = $state("");
 
   // LocalStorageのキー名（保存・読み込みで共通して使う）
   const STORAGE_KEY = "thai-composer-saved";
@@ -261,7 +267,12 @@
    * 追加後は入力欄をリセットして次の入力に備える
    */
   function selectWord(word) {
-    composedWords = [...composedWords, word.thai];
+    // 記憶したカーソル位置、なければ末尾を挿入位置にする
+    const pos = savedCursorPos ?? composedText.length;
+    // カーソル位置に単語を挿入する
+    composedText = composedText.slice(0, pos) + word.thai + composedText.slice(pos);
+    // 次の挿入位置を挿入した単語の末尾に更新する
+    savedCursorPos = pos + word.thai.length;
     query = "";
     selectedIndex = -1;
     setTimeout(() => {
@@ -293,22 +304,17 @@
    */
   function saveComposed() {
     // 作成エリアが空のときは何もしない
-    if (composedWords.length === 0) return;
-
-    // 作成エリアの内容を文字列にして保存リストの先頭に追加する
-    savedList = [composedWords.join(""), ...savedList];
+    if (!composedText.trim()) return;
+    savedList = [composedText, ...savedList];
     persistSavedList();
-
-    // 作成エリアをリセットする
-    composedWords = [];
+    composedText = "";
   }
 
   /**
    * 作成エリアをリセットする関数
    */
   function clearComposed() {
-    composedWords = [];
-    // クリア時に翻訳結果もリセットする
+    composedText = "";
     translatedText = "";
   }
 
@@ -326,25 +332,20 @@
    */
   async function translateComposed() {
     // 作成エリアが空のときは何もしない
-    if (composedWords.length === 0) return;
-
+    if (!composedText.trim()) return;
     translating = true;
     translatedText = "";
-
     const response = await fetch("/api/translate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: composedWords.join("") }),
+      body: JSON.stringify({ text: composedText }),
     });
-
     const data = await response.json();
     translating = false;
-
     if (data.error) {
       translatedText = "翻訳に失敗しました";
       return;
     }
-
     translatedText = data.translated;
   }
 
@@ -380,23 +381,26 @@
 </script>
 
 <main>
-  <h1>タイ語ライター</h1>
+  <h1>タイ語コンポーザー</h1>
 
   <!-- 作成エリア：選んだ単語が積み上がっていく場所 -->
   <div class="composer">
-    <p class="composed-text">
-      {#if composedWords.length === 0}
-        <span class="placeholder">単語を選ぶとここに追加されます</span>
-      {:else}
-        {composedWords.join("")}
-      {/if}
-    </p>
-    <!-- 保存・クリアボタン -->
+    <!-- 作成エリア：直接編集可能なtextarea -->
+    <textarea
+      class="composed-text"
+      placeholder="単語を選ぶとここに追加されます"
+      bind:value={composedText}
+      bind:this={composerEl}
+      onblur={() => {
+        // フォーカスが外れた瞬間にカーソル位置を記憶する
+        savedCursorPos = composerEl?.selectionStart ?? null;
+      }}
+    ></textarea>
     <div class="composer-actions">
       <button class="btn-save" onclick={saveComposed}>保存</button>
       <button class="btn-clear" onclick={clearComposed}>クリア</button>
       <button class="btn-translate" onclick={translateComposed}>翻訳</button>
-      <button class="btn-copy" class:copied={copiedKey === "composer"} onclick={() => copyText(composedWords.join(""), "composer")}>
+      <button class="btn-copy" class:copied={copiedKey === "composer"} onclick={() => copyText(composedText, "composer")}>
         {copiedKey === "composer" ? "✅ コピーしました" : "コピー"}
       </button>
     </div>
@@ -420,12 +424,17 @@
         if (e.key === "Tab") {
           // Tabキー：ブラウザ本来のフォーカス移動をさせない
           e.preventDefault();
-          // タブの順番リスト（最後の次は最初に戻る）
+          // タブの順番リスト
           const modes = ["thaiA", "thaiB", "reading", "japanese"];
           const currentIndex = modes.indexOf(searchMode);
-          // 次のモードに切り替える（最後なら0に戻る）
-          searchMode = modes[(currentIndex + 1) % modes.length];
-          // モード切り替え時に入力欄と検索結果をリセットする
+          if (e.shiftKey) {
+            // Shift+Tab：前のモードに戻る（最初なら最後に戻る）
+            searchMode = modes[(currentIndex - 1 + modes.length) % modes.length];
+          } else {
+            // Tab：次のモードに進む（最後なら最初に戻る）
+            searchMode = modes[(currentIndex + 1) % modes.length];
+          }
+          // モード切り替え時に選択中の候補だけリセットする
           selectedIndex = -1;
         } else if (e.key === "ArrowDown") {
           // ↓キー：次の候補に移動（最後の候補を超えたら止まる）
@@ -666,11 +675,19 @@
   .composed-text {
     font-size: 22px;
     color: #2d2a4a;
-    margin: 0;
+    width: 100%;
+    min-height: 60px;
+    border: none;
+    resize: none;
+    outline: none;
+    box-sizing: border-box;
+    font-family: sans-serif;
     word-break: break-all;
+    background: transparent;
   }
 
-  .placeholder {
+  /* textareaのplaceholderの色 */
+  .composed-text::placeholder {
     font-size: 14px;
     color: #aaa;
   }
