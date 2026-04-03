@@ -453,7 +453,14 @@
     ></textarea>
     <!-- 挿入位置の表示：savedCursorPosがあるときだけ表示 -->
     {#if savedCursorPos !== null}
-      <p class="cursor-hint">挿入位置: {composedText.slice(0, savedCursorPos)}|</p>
+      <!-- 末尾30文字だけ表示する。30文字より長い場合は先頭に...をつける -->
+      <p class="cursor-hint">
+        {#if composedText.slice(0, savedCursorPos).length > 30}
+          挿入位置: ...{composedText.slice(savedCursorPos - 30, savedCursorPos)}|
+        {:else}
+          挿入位置: {composedText.slice(0, savedCursorPos)}|
+        {/if}
+      </p>
     {/if}
     <div class="composer-actions">
       <button class="btn-save" onclick={saveComposed}>保存</button>
@@ -841,6 +848,7 @@
     color: #2d2a4a;
     width: 100%;
     min-height: 60px;
+    height: 80px; /* 約3行分の高さに固定する */
     border: none;
     resize: none;
     outline: none;
@@ -848,6 +856,7 @@
     font-family: sans-serif;
     word-break: break-all;
     background: transparent;
+    overflow-y: auto; /* 縦方向にはみ出たらスクロールできるようにする */
   }
 
   /* textareaのplaceholderの色 */
