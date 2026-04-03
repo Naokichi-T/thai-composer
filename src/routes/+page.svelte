@@ -404,7 +404,7 @@
 </script>
 
 <main>
-  <h1>タイ語コンポーザー</h1>
+  <!-- <h1>タイ語コンポーザー</h1> -->
 
   <!-- 作成エリア：選んだ単語が積み上がっていく場所 -->
   <div class="composer">
@@ -584,7 +584,7 @@
   <!-- 保存済み一覧 -->
   {#if savedList.length > 0}
     <div class="saved-list">
-      <h2>保存済み</h2>
+      <!-- <h2>保存済み</h2> -->
       {#each savedList as item, index}
         <div class="saved-item">
           <span class="saved-text">{item}</span>
