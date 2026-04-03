@@ -404,7 +404,7 @@
 </script>
 
 <main>
-  <!-- <h1>タイ語コンポーザー</h1> -->
+  <h1>タイ語コンポーザー</h1>
 
   <!-- 作成エリア：選んだ単語が積み上がっていく場所 -->
   <div class="composer">
@@ -444,7 +444,7 @@
   <div class="search-box">
     <input
       type="text"
-      placeholder={searchMode === "thaiA" ? "タイ語を入力..." : searchMode === "thaiB" ? "タイ語を入力（B）..." : searchMode === "reading" ? "読み方を入力..." : "日本語を入力..."}
+      placeholder={searchMode === "thaiA" ? "タイ語を入力（A）..." : searchMode === "thaiB" ? "タイ語を入力（B）..." : searchMode === "reading" ? "読み方を入力..." : "日本語を入力..."}
       bind:value={query}
       bind:this={inputEl}
       onkeydown={(e) => {
@@ -584,7 +584,7 @@
   <!-- 保存済み一覧 -->
   {#if savedList.length > 0}
     <div class="saved-list">
-      <!-- <h2>保存済み</h2> -->
+      <h2>保存済み</h2>
       {#each savedList as item, index}
         <div class="saved-item">
           <span class="saved-text">{item}</span>
@@ -609,7 +609,7 @@
   }
 
   h1 {
-    font-size: 24px;
+    font-size: 18px;
     margin-bottom: 16px;
   }
 
@@ -917,7 +917,7 @@
   }
 
   .saved-list h2 {
-    font-size: 18px;
+    font-size: 14px;
     margin-bottom: 12px;
     color: #333;
   }
