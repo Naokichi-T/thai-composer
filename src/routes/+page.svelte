@@ -52,15 +52,18 @@
   // コピー完了メッセージを表示するボタンのkey（nullは非表示）
   let copiedKey = $state(null);
 
-  // 現在選択中の検索モード（onMountで復元する、初期値は"thaiA"）
-  // "thaiA"=タイ語A / "thaiB"=タイ語B / "reading"=読み方 / "japanese"=日本語
-  let searchMode = $state("thaiA");
+  // 現在選択中の検索モード（onMountで復元する、初期値は"thai"）
+  // "thai"=タイ語 / "reading"=読み方 / "japanese"=日本語
+  let searchMode = $state("thai");
 
   // Fuse.jsのインスタンスを格納する変数（読み方検索に使う）
   let fuseReading = $state(null);
 
   // onMount完了後かどうかのフラグ（初期化前の$effectの誤保存を防ぐ）
   let mounted = $state(false);
+
+  // autoDetectMode用：1つ前のqueryの値を記憶する変数
+  let prevQuery = $state("");
 
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
@@ -174,6 +177,26 @@
   }
 
   /**
+   * 入力文字の種類を判定して検索モードを自動で切り替える関数
+   * queryが空→1文字になった瞬間だけ動く（2文字目以降は判定しない）
+   * タイ文字 → "thai" / アルファベット → "reading" / 日本語 → "japanese"
+   */
+  function autoDetectMode(q, prevQ) {
+    // 空→1文字になった瞬間だけ判定する（それ以外は何もしない）
+    if (prevQ.length !== 0 || q.length !== 1) return;
+    // タイ文字のUnicode範囲（\u0E00〜\u0E7F）に含まれるか
+    if (/[\u0E00-\u0E7F]/.test(q)) {
+      searchMode = "thai";
+      // 日本語（ひらがな・カタカナ・漢字）に含まれるか
+    } else if (/[\u3040-\u30FF\u4E00-\u9FFF]/.test(q)) {
+      searchMode = "japanese";
+      // アルファベットに含まれるか
+    } else if (/[a-zA-Z]/.test(q)) {
+      searchMode = "reading";
+    }
+  }
+
+  /**
    * queryを使ってallWordsをサブシーケンス検索する関数
    * 完全一致・前方一致・その他の順にスコアリングして並び替える
    * 最大30件に絞ってresultsに格納する
@@ -248,27 +271,6 @@
       if (normalizedThai.startsWith(normalizedQ)) return 2;
       // その他のサブシーケンス一致
       return 1;
-    }
-
-    // ▼ タイ語B：スコア優先＋文字数の近さ順で並べる（方法A）
-    if (searchMode === "thaiB") {
-      results = allWords
-        .filter((word) => {
-          const normalizedVariants = (word.thai_normalized ?? "").split(",");
-          return normalizedVariants.some((variant) => isSubsequence(q, { ...word, thai_normalized: variant.trim() }));
-        })
-        .sort((a, b) => {
-          // スコアの高い順に並べる
-          const scoreDiff = getScore(b) - getScore(a);
-          if (scoreDiff !== 0) return scoreDiff;
-          // スコアが同じなら入力文字数との差が小さい順
-          const aDiff = Math.abs(a.thai.length - q.length);
-          const bDiff = Math.abs(b.thai.length - q.length);
-          return aDiff - bDiff;
-        })
-        .slice(0, 30);
-      selectedIndex = -1;
-      return;
     }
 
     results = allWords
@@ -400,6 +402,10 @@
    * $effect：Svelte5で値の変化を検知する仕組み
    */
   $effect(() => {
+    // 入力文字の種類に応じて検索モードを自動切り替えする
+    autoDetectMode(query, prevQuery);
+    // 今のqueryを次回のために記憶しておく
+    prevQuery = query;
     searchWords(query);
   });
 
@@ -426,7 +432,7 @@
     fetchAllWords();
     loadSavedList();
     // LocalStorageから設定を復元する
-    searchMode = localStorage.getItem("searchMode") ?? "thaiA";
+    searchMode = localStorage.getItem("searchMode") ?? "thai";
     resultViewMode = localStorage.getItem("resultViewMode") ?? "list";
     // ページ表示時に入力欄にフォーカスを当てる
     inputEl?.focus();
@@ -483,7 +489,7 @@
   <div class="search-box">
     <input
       type="text"
-      placeholder={searchMode === "thaiA" ? "タイ語を入力（A）..." : searchMode === "thaiB" ? "タイ語を入力（B）..." : searchMode === "reading" ? "読み方を入力..." : "日本語を入力..."}
+      placeholder={searchMode === "thai" ? "タイ語を入力..." : searchMode === "reading" ? "読み方を入力..." : "日本語を入力..."}
       bind:value={query}
       bind:this={inputEl}
       onkeydown={(e) => {
@@ -492,14 +498,14 @@
         if (e.key === "ArrowLeft") {
           // ←キー：前のモードに戻る（最初なら最後に戻る）
           e.preventDefault();
-          const modes = ["thaiA", "thaiB", "reading", "japanese"];
+          const modes = ["thai", "reading", "japanese"];
           const currentIndex = modes.indexOf(searchMode);
           searchMode = modes[(currentIndex - 1 + modes.length) % modes.length];
           selectedIndex = -1;
         } else if (e.key === "ArrowRight") {
           // →キー：次のモードに進む（最後なら最初に戻る）
           e.preventDefault();
-          const modes = ["thaiA", "thaiB", "reading", "japanese"];
+          const modes = ["thai", "reading", "japanese"];
           const currentIndex = modes.indexOf(searchMode);
           searchMode = modes[(currentIndex + 1) % modes.length];
           selectedIndex = -1;
@@ -543,17 +549,10 @@
   <div class="search-tabs">
     <button
       class="tab"
-      class:active={searchMode === "thaiA"}
+      class:active={searchMode === "thai"}
       onclick={() => {
-        searchMode = "thaiA";
-      }}>タイ語A</button
-    >
-    <button
-      class="tab"
-      class:active={searchMode === "thaiB"}
-      onclick={() => {
-        searchMode = "thaiB";
-      }}>タイ語B</button
+        searchMode = "thai";
+      }}>タイ語</button
     >
     <button
       class="tab"
