@@ -487,6 +487,8 @@
       bind:value={query}
       bind:this={inputEl}
       onkeydown={(e) => {
+        // IME変換中（日本語入力の確定前）はすべてのキー操作を無視する
+        if (e.isComposing) return;
         if (e.key === "ArrowLeft") {
           // ←キー：前のモードに戻る（最初なら最後に戻る）
           e.preventDefault();
