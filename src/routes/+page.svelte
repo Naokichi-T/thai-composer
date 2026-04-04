@@ -463,10 +463,10 @@
       </p>
     {/if}
     <div class="composer-actions">
-      <button class="btn-save" onclick={saveComposed}>保存</button>
-      <button class="btn-clear" onclick={clearComposed}>クリア</button>
-      <button class="btn-translate" onclick={translateComposed}>翻訳</button>
-      <button class="btn-copy" class:copied={copiedKey === "composer"} onclick={() => copyText(composedText, "composer")}>
+      <button class="btn-save" tabindex="-1" onclick={saveComposed}>保存</button>
+      <button class="btn-clear" tabindex="-1" onclick={clearComposed}>クリア</button>
+      <button class="btn-translate" tabindex="-1" onclick={translateComposed}>翻訳</button>
+      <button class="btn-copy" tabindex="-1" class:copied={copiedKey === "composer"} onclick={() => copyText(composedText, "composer")}>
         {copiedKey === "composer" ? "✅ コピーしました" : "コピー"}
       </button>
     </div>
