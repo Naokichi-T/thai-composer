@@ -301,16 +301,15 @@
    * 追加後は入力欄をリセットして次の入力に備える
    */
   function selectWord(word) {
-    // 記憶したカーソル位置、なければ末尾を挿入位置にする
     const pos = savedCursorPos ?? composedText.length;
-    // カーソル位置に単語を挿入する
     composedText = composedText.slice(0, pos) + word.thai + composedText.slice(pos);
-    // 次の挿入位置をtextareaの末尾に更新する
     savedCursorPos = composedText.length;
     query = "";
     selectedIndex = -1;
     setTimeout(() => {
       inputEl?.focus();
+      // 追加：単語を挿入したあとに作成エリアを末尾までスクロールする
+      if (composerEl) composerEl.scrollTop = composerEl.scrollHeight;
     }, 0);
   }
 
@@ -519,14 +518,16 @@
           selectedIndex = Math.max(selectedIndex - 1, -1);
         } else if (e.key === "Enter") {
           if (selectedIndex >= 0 && results[selectedIndex]) {
-            // 候補が選択中ならその候補を確定する
             selectWord(results[selectedIndex]);
           } else if (query.length > 0) {
-            // 未選択ならそのままカーソル位置に追加する
             const pos = savedCursorPos ?? composedText.length;
             composedText = composedText.slice(0, pos) + query + composedText.slice(pos);
             savedCursorPos = pos + query.length;
             query = "";
+            // ✅ 追加：Enterキーで直接追加したあとも末尾までスクロールする
+            setTimeout(() => {
+              if (composerEl) composerEl.scrollTop = composerEl.scrollHeight;
+            }, 0);
           }
         }
       }}
