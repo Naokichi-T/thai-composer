@@ -65,6 +65,10 @@
   // autoDetectMode用：1つ前のqueryの値を記憶する変数
   let prevQuery = $state("");
 
+  // スマホ（タッチ対応デバイス）かどうかのフラグ
+  // onMount後に設定するため、初期値はfalse
+  let isMobile = $state(false);
+
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
    * Supabaseは1回のリクエストで最大1000件しか取得できないため
@@ -437,6 +441,20 @@
     inputEl?.focus();
     // 初期化完了フラグを立てる
     mounted = true;
+
+    // スマホ判定してフラグを立てる
+    // 'ontouchstart' in window：タッチ操作に対応しているデバイスかどうか
+    isMobile = "ontouchstart" in window;
+
+    if (isMobile) {
+      // スクロール量が50px以上のときだけキーボードを閉じる
+      // 少し触れただけでは反応しないようにするため
+      window.addEventListener("scroll", () => {
+        if (window.scrollY > 50) {
+          document.activeElement?.blur();
+        }
+      });
+    }
   });
 </script>
 
@@ -637,6 +655,22 @@
         </div>
       {/each}
     </div>
+  {/if}
+
+  <!-- スマホ用：右下固定ボタン（最上部に戻る＋キーボードを開く） -->
+  {#if isMobile}
+    <button
+      class="btn-scroll-top"
+      onclick={() => {
+        // 最上部にスムーズスクロールする
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        // スクロールが終わるのを待ってからinputにフォーカスする
+        // （すぐfocusするとキーボードが出なかったり消えたりする）
+        setTimeout(() => {
+          inputEl?.focus();
+        }, 400);
+      }}>↑</button
+    >
   {/if}
 </main>
 
@@ -999,5 +1033,27 @@
     background-color: #fee;
     color: #c00;
     border-color: #c00;
+  }
+
+  /* スマホ用：右下固定ボタン */
+  .btn-scroll-top {
+    /* 画面に固定して常に表示する */
+    position: fixed;
+    /* 右下に配置 */
+    bottom: 24px;
+    right: 24px;
+    /* 見た目 */
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: #2d2a4a;
+    color: white;
+    font-size: 20px;
+    border: none;
+    cursor: pointer;
+    /* 他の要素より手前に表示する */
+    z-index: 100;
+    /* 影をつけて浮いているように見せる */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
 </style>
