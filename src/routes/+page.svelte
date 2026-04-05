@@ -49,6 +49,13 @@
   // 翻訳中かどうかのフラグ
   let translating = $state(false);
 
+  // リアルタイム翻訳（Google翻訳）の結果を格納する変数
+  let realtimeTranslation = $state("");
+
+  // デバウンス用のタイマーIDを格納する変数
+  // clearTimeout()で前のタイマーをリセットするために使う
+  let realtimeTimer = null;
+
   // コピー完了メッセージを表示するボタンのkey（nullは非表示）
   let copiedKey = $state(null);
 
@@ -364,6 +371,29 @@
   }
 
   /**
+   * Google翻訳の非公式APIを使ってリアルタイム翻訳する関数
+   * DeepLより品質は落ちるが無料で使える
+   * composedTextが変わるたびに自動で呼び出される
+   */
+  async function translateRealtime(text) {
+    // Google翻訳の非公式API URL
+    // sl=th（タイ語）、tl=ja（日本語）、q=翻訳するテキスト
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=th&tl=ja&dt=t&q=${encodeURIComponent(text)}`;
+
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+
+      // レスポンスの構造：data[0] が翻訳結果の配列
+      // data[0][0][0] が翻訳されたテキスト
+      realtimeTranslation = data[0].map((item) => item[0]).join("");
+    } catch (e) {
+      // エラーが起きても何も表示しない（参考訳なので）
+      realtimeTranslation = "";
+    }
+  }
+
+  /**
    * 作成エリアのタイ語を日本語に翻訳する関数
    * /api/translate エンドポイントを経由してDeepL APIを呼び出す
    */
@@ -412,10 +442,26 @@
     searchWords(query);
   });
 
-  // composedTextが変わったら翻訳結果をリセットする
+  // composedTextが変わったらDeepL訳をリセットして、0.5秒後にGoogle翻訳する
   $effect(() => {
-    composedText;
+    const text = composedText;
+
+    // DeepL訳はリセットする
     translatedText = "";
+
+    // 前のタイマーをリセットする（連続入力時に翻訳が何度も走らないようにする）
+    clearTimeout(realtimeTimer);
+
+    // テキストが空なら参考訳もリセットして終了する
+    if (!text.trim()) {
+      realtimeTranslation = "";
+      return;
+    }
+
+    // 0.5秒後にGoogle翻訳を実行する
+    realtimeTimer = setTimeout(() => {
+      translateRealtime(text);
+    }, 500);
   });
 
   // searchModeが変わったらLocalStorageに保存する（mount後のみ）
@@ -498,9 +544,14 @@
 
     <!-- 翻訳結果 -->
     {#if translating}
+      <!-- DeepL翻訳中 -->
       <p class="translated">翻訳中...</p>
     {:else if translatedText}
+      <!-- DeepL訳：「翻訳」ボタンを押したときだけ表示 -->
       <p class="translated">{translatedText}</p>
+    {:else if realtimeTranslation}
+      <!-- 参考訳：Google翻訳によるリアルタイム翻訳 -->
+      <p class="translated realtime">{realtimeTranslation}</p>
     {/if}
   </div>
 
@@ -993,6 +1044,12 @@
     margin-top: 8px;
     font-size: 16px;
     color: #555;
+  }
+
+  /* 参考訳：Google翻訳の結果をグレーで表示する */
+  .translated.realtime {
+    color: #aaa;
+    font-size: 14px;
   }
 
   .saved-list {
