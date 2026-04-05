@@ -447,15 +447,25 @@
     isMobile = "ontouchstart" in window;
 
     if (isMobile) {
+      // キーボードが閉じた後に復元するスクロール位置を記憶する変数
+      let savedScrollY = 0;
+
       // スクロールイベントが発生したら即座にキーボードを閉じる
       // passive: true = ブラウザに「スクロールを邪魔しない」と伝えてスクロールを速くする
       window.addEventListener(
         "scroll",
         () => {
+          // スクロール位置を記憶しておく
+          savedScrollY = window.scrollY;
           document.activeElement?.blur();
         },
         { passive: true },
       );
+
+      // 画面サイズが変わったとき（キーボードの出し入れ）にスクロール位置を復元する
+      window.addEventListener("resize", () => {
+        window.scrollTo({ top: savedScrollY, behavior: "instant" });
+      });
     }
   });
 </script>
