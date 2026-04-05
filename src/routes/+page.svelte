@@ -447,13 +447,15 @@
     isMobile = "ontouchstart" in window;
 
     if (isMobile) {
-      // スクロール量が0px以上のときだけキーボードを閉じる
-      // 少し触れただけでは反応しないようにするため
-      window.addEventListener("scroll", () => {
-        if (window.scrollY > 0) {
+      // スクロールイベントが発生したら即座にキーボードを閉じる
+      // passive: true = ブラウザに「スクロールを邪魔しない」と伝えてスクロールを速くする
+      window.addEventListener(
+        "scroll",
+        () => {
           document.activeElement?.blur();
-        }
-      });
+        },
+        { passive: true },
+      );
     }
   });
 </script>
@@ -662,8 +664,8 @@
     <button
       class="btn-scroll-top"
       onclick={() => {
-        // 最上部にスムーズスクロールする
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        // behavior: 'instant' = アニメーションなしで即座に最上部へ移動する
+        window.scrollTo({ top: 0, behavior: "instant" });
         // スクロールが終わるのを待ってからinputにフォーカスする
         // （すぐfocusするとキーボードが出なかったり消えたりする）
         setTimeout(() => {
