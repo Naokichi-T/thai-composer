@@ -447,10 +447,10 @@
     isMobile = "ontouchstart" in window;
 
     if (isMobile) {
-      // スクロール量が10px以上のときだけキーボードを閉じる
+      // スクロール量が0px以上のときだけキーボードを閉じる
       // 少し触れただけでは反応しないようにするため
       window.addEventListener("scroll", () => {
-        if (window.scrollY > 10) {
+        if (window.scrollY > 0) {
           document.activeElement?.blur();
         }
       });
