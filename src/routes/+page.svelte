@@ -96,7 +96,7 @@
     while (true) {
       const { data, error } = await supabase
         .from("words")
-        .select("thai, reading, meaning, frequency, formality, thai_normalized, reading_normalized, no, url_no")
+        .select("thai, reading, meaning, frequency, formality, thai_normalized, reading_normalized, phonemic_normalized, no, url_no")
         .order("frequency", { ascending: false }) // 頻出度の降順
         .order("url_no", { ascending: true }) // 同じ頻出度の中はurl_noの昇順
         // from〜toの範囲で取得（ページネーション）
@@ -290,14 +290,19 @@
 
     results = allWords
 
-      // ▼ 変更後（カンマ区切りで複数の正規化形に対応）
-      // thai_normalizedをカンマで分割して、どれか1つでもヒットすればOK
-      // 例: "กุยแจ,กุนแจ" → どちらかにマッチすれば検索結果に出る
       .filter((word) => {
-        // カンマで分割して複数の正規化形を配列にする（1つだけの場合も配列になる）
-        const normalizedVariants = (word.thai_normalized ?? "").split(",");
-        // いずれか1つにサブシーケンス一致すればtrueを返す
-        return normalizedVariants.some((variant) => isSubsequence(q, { ...word, thai_normalized: variant.trim() }));
+        // thai_normalizedをカンマで分割して、どれか1つでもヒットすればOK
+        const thaiVariants = (word.thai_normalized ?? "").split(",");
+        const thaiHit = thaiVariants.some((variant) => isSubsequence(q, { ...word, thai_normalized: variant.trim() }));
+
+        // phonemic_normalizedでもサブシーケンス検索する
+        const phonemicHit = isSubsequence(q, {
+          ...word,
+          thai_normalized: word.phonemic_normalized ?? "",
+        });
+
+        // どちらかにヒットすればOK
+        return thaiHit || phonemicHit;
       })
 
       // ▼ 方法B：文字数の近さのみで並べる（スコアなし）
