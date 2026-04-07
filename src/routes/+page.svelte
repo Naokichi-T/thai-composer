@@ -974,7 +974,7 @@
     outline: none;
     box-sizing: border-box;
     font-family: sans-serif;
-    word-break: break-all;
+    word-break: normal; /* ★ 単語の区切りでだけ改行する */
     background: transparent;
     overflow-y: auto; /* 縦方向にはみ出たらスクロールできるようにする */
   }
