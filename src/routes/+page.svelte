@@ -76,6 +76,10 @@
   // onMount後に設定するため、初期値はfalse
   let isMobile = $state(false);
 
+  // 作成エリアの操作履歴を格納する配列（Ctrl+Zで戻るために使う）
+  // 末尾が最新の状態。Ctrl+Zを押すたびに末尾から取り出す
+  let undoStack = $state([]);
+
   /**
    * Supabaseから全単語を1000件ずつ取得してallWordsに格納する関数
    * Supabaseは1回のリクエストで最大1000件しか取得できないため
@@ -312,6 +316,9 @@
    * 追加後は入力欄をリセットして次の入力に備える
    */
   function selectWord(word) {
+    // 単語を選択する前に現在の状態を履歴に積む
+    undoStack = [...undoStack, composedText];
+
     const pos = savedCursorPos ?? composedText.length;
     composedText = composedText.slice(0, pos) + word.thai + composedText.slice(pos);
     savedCursorPos = composedText.length;
@@ -319,7 +326,7 @@
     selectedIndex = -1;
     setTimeout(() => {
       inputEl?.focus();
-      // 追加：単語を挿入したあとに作成エリアを末尾までスクロールする
+      // 単語を挿入したあとに作成エリアを末尾までスクロールする
       if (composerEl) composerEl.scrollTop = composerEl.scrollHeight;
     }, 0);
   }
@@ -358,6 +365,7 @@
    * 作成エリアをリセットする関数
    */
   function clearComposed() {
+    undoStack = [composedText];
     composedText = "";
     translatedText = "";
   }
@@ -488,6 +496,27 @@
     // 初期化完了フラグを立てる
     mounted = true;
 
+    // ★ 追加：Ctrl+Z（またはMacのCmd+Z）でアンドゥする
+    // document全体にイベントを登録することで、どこにフォーカスがあっても動く
+    function handleUndo(e) {
+      // Ctrl+Z（Windows）またはCmd+Z（Mac）のとき
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        // 履歴がなければ何もしない
+        if (undoStack.length === 0) return;
+
+        // ★ ブラウザのデフォルトのCtrl+Z動作を止める
+        e.preventDefault();
+
+        // 末尾（最新の履歴）を取り出してcomposedTextに戻す
+        const prev = undoStack[undoStack.length - 1];
+        // 末尾を除いた配列を新しいスタックにする
+        undoStack = undoStack.slice(0, -1);
+        composedText = prev;
+      }
+    }
+
+    document.addEventListener("keydown", handleUndo);
+
     // スマホ判定してフラグを立てる
     // 'ontouchstart' in window：タッチ操作に対応しているデバイスかどうか
     isMobile = "ontouchstart" in window;
@@ -591,6 +620,8 @@
           if (selectedIndex >= 0 && results[selectedIndex]) {
             selectWord(results[selectedIndex]);
           } else if (query.length > 0) {
+            // ★Enterで直接追加する前に履歴を積む
+            undoStack = [...undoStack, composedText];
             const pos = savedCursorPos ?? composedText.length;
             composedText = composedText.slice(0, pos) + query + composedText.slice(pos);
             savedCursorPos = pos + query.length;
