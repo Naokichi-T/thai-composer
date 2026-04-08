@@ -96,6 +96,7 @@
     while (true) {
       const { data, error } = await supabase
         .from("words")
+        // .select("thai, reading, meaning, frequency, formality, reading_normalized, phonemic_normalized, no, url_no")
         .select("thai, reading, meaning, frequency, formality, thai_normalized, reading_normalized, phonemic_normalized, no, url_no")
         .order("frequency", { ascending: false }) // 頻出度の降順
         .order("url_no", { ascending: true }) // 同じ頻出度の中はurl_noの昇順
@@ -174,20 +175,29 @@
    * 順番通りに含まれるか判定する関数
    * 例: input="ครบ" target.thai_normalized="ครบ" → true
    */
+  // function isSubsequence(input, target) {
+  //   // 入力側も同じルールで正規化する
+  //   const normalizedInput = normalizeInput(input);
+  //   const normalizedTarget = target.thai_normalized ?? "";
+
+  //   let inputIndex = 0;
+
+  //   for (let i = 0; i < normalizedTarget.length; i++) {
+  //     if (normalizedTarget[i] === normalizedInput[inputIndex]) {
+  //       inputIndex++;
+  //     }
+  //     if (inputIndex === normalizedInput.length) return true;
+  //   }
+
+  //   return false;
+  // }
+
   function isSubsequence(input, target) {
-    // 入力側も同じルールで正規化する
-    const normalizedInput = normalizeInput(input);
-    const normalizedTarget = target.thai_normalized ?? "";
-
     let inputIndex = 0;
-
-    for (let i = 0; i < normalizedTarget.length; i++) {
-      if (normalizedTarget[i] === normalizedInput[inputIndex]) {
-        inputIndex++;
-      }
-      if (inputIndex === normalizedInput.length) return true;
+    for (let i = 0; i < target.length; i++) {
+      if (target[i] === input[inputIndex]) inputIndex++;
+      if (inputIndex === input.length) return true;
     }
-
     return false;
   }
 
@@ -290,19 +300,17 @@
 
     results = allWords
 
+      // .filter((word) => {
+      //   const thaiHit = isSubsequence(q, word.thai ?? "");
+      //   const phonemicHit = isSubsequence(q, word.phonemic_normalized ?? "");
+      //   return thaiHit || phonemicHit;
+      // })
+
       .filter((word) => {
-        // thai_normalizedをカンマで分割して、どれか1つでもヒットすればOK
-        const thaiVariants = (word.thai_normalized ?? "").split(",");
-        const thaiHit = thaiVariants.some((variant) => isSubsequence(q, { ...word, thai_normalized: variant.trim() }));
-
-        // phonemic_normalizedでもサブシーケンス検索する
-        const phonemicHit = isSubsequence(q, {
-          ...word,
-          thai_normalized: word.phonemic_normalized ?? "",
-        });
-
-        // どちらかにヒットすればOK
-        return thaiHit || phonemicHit;
+        const thaiHit = isSubsequence(q, word.thai ?? "");
+        const phonemicHit = isSubsequence(q, word.phonemic_normalized ?? "");
+        const thaiNormalizedHit = isSubsequence(q, word.thai_normalized ?? "");
+        return thaiHit || phonemicHit || thaiNormalizedHit;
       })
 
       // ▼ 方法B：文字数の近さのみで並べる（スコアなし）
