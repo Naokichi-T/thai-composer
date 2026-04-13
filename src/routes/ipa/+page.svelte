@@ -11,18 +11,34 @@
   // --- 対応表を読み込む関数 ---
   async function loadDictionary() {
     try {
+      // オリジナルデータを読み込む
       const res = await fetch("/thai2ipa.data");
       if (!res.ok) throw new Error("データの読み込みに失敗しました");
       const text = await res.text();
 
       // タブ区切りで辞書を作る
-      // 例：「สวัสดี\tsà-wàt-dii」→ { สวัสดี: 'sà-wàt-dii' }
       const dict = {};
       for (const line of text.split("\n")) {
         const [thai, ipa] = line.split("\t");
         if (thai && ipa) {
           dict[thai.trim()] = ipa.trim();
         }
+      }
+
+      // カスタムデータを読み込む（オリジナルを上書きする形で追加）
+      // ※ファイルがない場合はスキップする
+      const customRes = await fetch("/thai2ipa_custom.data");
+      if (customRes.ok) {
+        const customText = await customRes.text();
+        let customCount = 0;
+        for (const line of customText.split("\n")) {
+          const [thai, ipa] = line.split("\t");
+          if (thai && ipa) {
+            dict[thai.trim()] = ipa.trim();
+            customCount++;
+          }
+        }
+        console.log(`カスタム辞書: ${customCount} 語 読み込みました`);
       }
 
       dictionary = dict;
