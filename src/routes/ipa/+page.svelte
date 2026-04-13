@@ -116,6 +116,9 @@
     // 最長一致法でトークンに分割する
     const tokens = tokenize(line);
 
+    // ★ 確認用（後で削除する）
+    console.log("tokens:", tokens);
+
     let result = "";
 
     for (const token of tokens) {
