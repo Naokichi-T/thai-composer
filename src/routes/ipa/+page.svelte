@@ -7,6 +7,19 @@
   let dictionary = $state({}); // 対応表（タイ語 → IPA）
   let isLoading = $state(true); // 読み込み中フラグ
   let loadError = $state(""); // エラーメッセージ
+  let copied = $state(false); // コピー完了フラグ
+
+  /**
+   * 変換結果をクリップボードにコピーする関数
+   * コピー後は2秒間「✅ コピーしました」を表示する
+   */
+  async function copyOutput() {
+    await navigator.clipboard.writeText(outputText);
+    copied = true;
+    setTimeout(() => {
+      copied = false;
+    }, 2000);
+  }
 
   // --- 対応表を読み込む関数 ---
   async function loadDictionary() {
@@ -174,7 +187,9 @@
       <div class="output">
         <div class="output-header">
           <h2>変換結果</h2>
-          <button class="btn-copy" onclick={() => navigator.clipboard.writeText(outputText)}>コピー</button>
+          <button class="btn-copy" class:copied onclick={copyOutput}>
+            {copied ? "✅ コピーしました" : "コピー"}
+          </button>
         </div>
         <p class="result">{outputText}</p>
       </div>
@@ -283,6 +298,12 @@
 
   .btn-copy:hover {
     background: #e8e7f0;
+  }
+
+  /* コピー完了時のスタイル */
+  .btn-copy.copied {
+    color: #2d2a4a;
+    border-color: #2d2a4a;
   }
 
   .output {
