@@ -549,7 +549,10 @@
 </script>
 
 <main>
-  <h1>タイ語コンポーザー</h1>
+  <div class="header">
+    <h1>タイ語コンポーザー</h1>
+    <a href="/ipa" target="_blank" class="ipa-link">IPA変換</a>
+  </div>
 
   <!-- 作成エリア：選んだ単語が積み上がっていく場所 -->
   <div class="composer">
@@ -1158,5 +1161,31 @@
     z-index: 100;
     /* 影をつけて浮いているように見せる */
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  /* ヘッダー：タイトルとリンクを横並びにする */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .header h1 {
+    margin: 0;
+  }
+
+  /* IPA変換リンク */
+  .ipa-link {
+    font-size: 14px;
+    color: #2d2a4a;
+    text-decoration: none;
+    border: 1px solid #2d2a4a;
+    border-radius: 6px;
+    padding: 4px 12px;
+  }
+
+  .ipa-link:hover {
+    background-color: #e8e7f0;
   }
 </style>
