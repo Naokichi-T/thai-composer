@@ -62,10 +62,15 @@
     let i = 0;
 
     while (i < text.length) {
-      // タイ文字でない場合（スペース・英数字など）はそのまま追加
+      // タイ文字でない場合（スペース・英数字など）は固まりごとまとめて追加
+      // 例：「1,000」を「1」「,」「0」「0」「0」ではなく「1,000」として扱う
       if (!isThaiChar(text[i])) {
-        tokens.push(text[i]);
-        i++;
+        let chunk = "";
+        while (i < text.length && !isThaiChar(text[i])) {
+          chunk += text[i];
+          i++;
+        }
+        tokens.push(chunk);
         continue;
       }
 
@@ -98,19 +103,28 @@
     // 最長一致法でトークンに分割する
     const tokens = tokenize(line);
 
-    // 各トークンを辞書引きして変換する
-    const convertedTokens = tokens.map((token) => {
+    let result = "";
+
+    for (const token of tokens) {
       const ipa = dictionary[token];
       if (ipa) {
+        // タイ語トークン：IPAに変換してスペースを後ろに追加する
         // ˑ（音節区切り記号）を除去して返す
-        return ipa.replaceAll("ˑ", "");
+        result += ipa.replaceAll("ˑ", "") + " ";
+      } else {
+        // スペースだけのchunkはそのまま追加する（センテンス間のスペースを保持するため）
+        // スペース以外を含むchunk（"1,000"など）は先頭のスペースを除去する
+        // 例：" 1,000 " → "1,000 "（タイ語トークンの後ろのスペースと重複するため）
+        if (token.trim() === "") {
+          result += token;
+        } else {
+          result += token.trimStart();
+        }
       }
-      // 辞書にない場合はそのまま返す
-      return token;
-    });
+    }
 
-    // 変換したトークンをスペースで結合して返す
-    return convertedTokens.join(" ");
+    // 末尾に余分なスペースが残る場合は除去する
+    return result.trimEnd();
   }
 
   // --- タイ語をIPAに変換する関数 ---
@@ -143,13 +157,25 @@
     <!-- 入力エリア -->
     <textarea placeholder="タイ語を入力してください" bind:value={inputText}></textarea>
 
-    <!-- 変換ボタン -->
-    <button onclick={convert}>変換</button>
+    <!-- ボタン群 -->
+    <div class="actions">
+      <button class="btn-convert" onclick={convert}>変換</button>
+      <button
+        class="btn-clear"
+        onclick={() => {
+          inputText = "";
+          outputText = "";
+        }}>クリア</button
+      >
+    </div>
 
     <!-- 変換結果 -->
     {#if outputText}
       <div class="output">
-        <h2>変換結果</h2>
+        <div class="output-header">
+          <h2>変換結果</h2>
+          <button class="btn-copy" onclick={() => navigator.clipboard.writeText(outputText)}>コピー</button>
+        </div>
         <p class="result">{outputText}</p>
       </div>
     {/if}
@@ -197,8 +223,13 @@
     box-sizing: border-box;
   }
 
-  button {
+  .actions {
+    display: flex;
+    gap: 8px;
     margin-top: 12px;
+  }
+
+  .btn-convert {
     padding: 10px 24px;
     font-size: 16px;
     background: #2d2a4a;
@@ -208,8 +239,50 @@
     cursor: pointer;
   }
 
-  button:hover {
+  .btn-convert:hover {
     opacity: 0.8;
+  }
+
+  /* クリアボタン：グレー系 */
+  .btn-clear {
+    padding: 10px 24px;
+    font-size: 16px;
+    background: #eee;
+    color: #333;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .btn-clear:hover {
+    background: #ddd;
+  }
+
+  /* 変換結果ヘッダー：タイトルとコピーボタンを横並びにする */
+  .output-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .output-header h2 {
+    margin: 0;
+  }
+
+  /* コピーボタン：小さめのボタン */
+  .btn-copy {
+    padding: 4px 12px;
+    font-size: 14px;
+    background: #fff;
+    color: #2d2a4a;
+    border: 1px solid #2d2a4a;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .btn-copy:hover {
+    background: #e8e7f0;
   }
 
   .output {
