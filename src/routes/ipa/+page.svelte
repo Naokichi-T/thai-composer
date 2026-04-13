@@ -157,6 +157,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>IPA変換</title>
+</svelte:head>
+
 <div class="container">
   <h1>IPA変換</h1>
 

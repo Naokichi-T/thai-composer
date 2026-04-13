@@ -548,6 +548,9 @@
   });
 </script>
 
+<svelte:head>
+  <title>コンポーザー</title>
+</svelte:head>
 <main>
   <div class="header">
     <h1>タイ語コンポーザー</h1>
