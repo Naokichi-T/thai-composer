@@ -8,6 +8,12 @@
   let isLoading = $state(true); // 読み込み中フラグ
   let loadError = $state(""); // エラーメッセージ
   let copied = $state(false); // コピー完了フラグ
+  let showAdvanced = $state(false); // 「詳細設定」の開閉フラグ
+  let useExcludedList = $state(true); // 除外リストを変換に反映するかどうか
+  let selectedTokens = $state([]); // 選択範囲から抽出したトークン一覧
+  let excludedTokens = $state([]); // 除外するトークンの一覧
+  let excludeInput = $state(""); // 除外トークンの入力欄
+  let registerMessage = $state(""); // 登録完了メッセージ
 
   /**
    * 変換結果をクリップボードにコピーする関数
@@ -70,6 +76,8 @@
 
   // --- 最長一致法でタイ語をトークンに分割する関数 ---
   // 例：「สวัสดีครับ」→ ["สวัสดี", "ครับ"]
+  // 除外リストに含まれるトークンは「辞書にない単語」として扱い、
+  // より短い単語での分割を試みる
   function tokenize(text) {
     const tokens = [];
     let i = 0;
@@ -92,6 +100,14 @@
       // 最大20文字まで試す（タイ語の単語はほぼ20文字以内）
       for (let len = 20; len >= 1; len--) {
         const candidate = text.slice(i, i + len);
+
+        // 除外リストに含まれているトークンは辞書にないものとして扱う
+        // （除外することで、より短い単語での分割が試みられる）
+        // useExcludedList が OFF のときはこのチェックをスキップする
+        if (useExcludedList && excludedTokens.includes(candidate)) {
+          continue;
+        }
+
         if (dictionary[candidate]) {
           // 辞書に見つかった！このトークンを追加する
           tokens.push(candidate);
@@ -154,9 +170,94 @@
     outputText = convertedLines.join("\n");
   }
 
+  /**
+   * テキストエリアでテキストが選択されたときにトークンを抽出する関数
+   * mouseup イベントで呼ばれる
+   */
+  function handleTextSelect() {
+    // 選択されているテキストを取得する
+    const selection = window.getSelection();
+    const selected = selection ? selection.toString() : "";
+
+    // 選択が空のときはトークン一覧をクリアして終了
+    if (!selected.trim()) {
+      selectedTokens = [];
+      return;
+    }
+
+    // tokenize() で分割して、タイ文字を含むトークンだけ抽出する
+    const tokens = tokenize(selected);
+    selectedTokens = tokens.filter((t) => [...t].some((c) => isThaiChar(c)));
+  }
+
+  /**
+   * 除外リストに LocalStorage へ保存する関数
+   * 登録・解除のたびに呼ぶ
+   */
+  function saveExcludedTokens() {
+    localStorage.setItem("ipa_excluded_tokens", JSON.stringify(excludedTokens));
+  }
+
+  /**
+   * 除外リストにトークンを登録する関数
+   * 入力欄の内容を追加して LocalStorage に保存する
+   */
+  function registerToken() {
+    const token = excludeInput.trim();
+
+    // 空のときは何もしない
+    if (!token) return;
+
+    // すでに登録済みのときはメッセージを出して終了
+    if (excludedTokens.includes(token)) {
+      registerMessage = "⚠️ すでに登録されています";
+      setTimeout(() => (registerMessage = ""), 2000);
+      return;
+    }
+
+    // 除外リストに追加して保存する
+    excludedTokens = [...excludedTokens, token];
+    saveExcludedTokens();
+
+    // 入力欄をクリアしてメッセージを表示する
+    excludeInput = "";
+    registerMessage = "✅ 登録しました";
+    setTimeout(() => (registerMessage = ""), 2000);
+  }
+
+  /**
+   * バッジをクリックしたときに除外入力欄にセットする関数
+   * そのまま登録ボタンを押せる状態にする
+   */
+  function selectTokenForExclude(token) {
+    excludeInput = token;
+  }
+
   // --- ページ表示時にデータを読み込む ---
   onMount(() => {
     loadDictionary();
+
+    // LocalStorage から除外リストを読み込む
+    const saved = localStorage.getItem("ipa_excluded_tokens");
+    if (saved) {
+      excludedTokens = JSON.parse(saved);
+    }
+
+    // 別タブ（/ipa/excluded）で LocalStorage が更新されたら自動で反映する
+    function handleStorage(e) {
+      // ipa_excluded_tokens 以外のキーの変更は無視する
+      if (e.key !== "ipa_excluded_tokens") return;
+
+      // 新しい値を読み込む（null のときは空配列にする）
+      excludedTokens = e.newValue ? JSON.parse(e.newValue) : [];
+    }
+
+    window.addEventListener("storage", handleStorage);
+
+    // ページを離れるときにイベントリスナーを解除する（メモリリーク防止）
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
   });
 </script>
 
@@ -174,8 +275,66 @@
   {:else}
     <p class="loaded">✅ {Object.keys(dictionary).length.toLocaleString()} 語 読み込み完了</p>
 
-    <!-- 入力エリア -->
-    <textarea placeholder="タイ語を入力してください" bind:value={inputText}></textarea>
+    <!-- 詳細設定（アコーディオン）← テキストエリアの上に置く -->
+    <div class="advanced-section">
+      <button class="advanced-toggle" onclick={() => (showAdvanced = !showAdvanced)}>
+        {showAdvanced ? "▼" : "▶"} 詳細設定
+      </button>
+
+      {#if showAdvanced}
+        <div class="advanced-body">
+          <!-- 除外リストの反映ON/OFF -->
+          <div class="toggle-row">
+            <button class="toggle-label" onclick={() => (useExcludedList = !useExcludedList)}>
+              <div class="toggle-switch" class:on={useExcludedList}>
+                <div class="toggle-knob"></div>
+              </div>
+              <span>除外リストを変換に反映する</span>
+            </button>
+          </div>
+        </div>
+        <!-- 選択範囲のトークン表示 -->
+        <div class="token-section">
+          {#if selectedTokens.length > 0}
+            <p class="token-hint">選択したテキストのトークン：</p>
+            <div class="token-list">
+              {#each selectedTokens as token}
+                <button class="token-badge" onclick={() => selectTokenForExclude(token)} title="クリックで除外入力欄にセット">{token}</button>
+              {/each}
+            </div>
+          {:else}
+            <p class="token-hint">入力欄のテキストを選択するとトークンが表示されます</p>
+          {/if}
+        </div>
+        <!-- 除外トークンの登録フォーム -->
+        <div class="exclude-form">
+          <p class="token-hint">除外するトークンを登録：</p>
+          <div class="exclude-input-row">
+            <input
+              type="text"
+              placeholder="例：ว่าว"
+              bind:value={excludeInput}
+              onkeydown={(e) => {
+                if (e.key === "Enter" && !e.isComposing) registerToken();
+              }}
+            />
+            <button class="btn-register" onclick={registerToken}>登録</button>
+          </div>
+          {#if registerMessage}
+            <p class="register-message">{registerMessage}</p>
+          {/if}
+          {#if excludedTokens.length > 0}
+            <p class="excluded-count">
+              除外中：{excludedTokens.length} 件
+              <a class="excluded-link" href="/ipa/excluded" target="_blank">一覧を見る →</a>
+            </p>
+          {/if}
+        </div>
+      {/if}
+    </div>
+
+    <!-- 入力エリア：テキスト選択時にトークンを抽出する -->
+    <textarea placeholder="タイ語を入力してください" bind:value={inputText} onmouseup={handleTextSelect}></textarea>
 
     <!-- ボタン群 -->
     <div class="actions">
@@ -325,5 +484,186 @@
     line-height: 1.8;
     white-space: pre-wrap;
     font-family: Arial, Helvetica, sans-serif;
+  }
+
+  /* 詳細設定セクション */
+  .advanced-section {
+    margin-top: 16px;
+  }
+
+  /* 詳細設定の開閉ボタン */
+  .advanced-toggle {
+    background: none;
+    border: none;
+    font-size: 15px;
+    color: #2d2a4a;
+    cursor: pointer;
+    padding: 4px 0;
+  }
+
+  .advanced-toggle:hover {
+    opacity: 0.7;
+  }
+
+  /* 詳細設定の中身エリア */
+  .advanced-body {
+    margin-top: 8px;
+    padding: 16px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #fafafa;
+  }
+
+  /* トグルスイッチの行 */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0;
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  /* トグルスイッチ本体（OFFのとき） */
+  .toggle-switch {
+    width: 40px;
+    height: 22px;
+    background: #ccc;
+    border-radius: 11px;
+    position: relative;
+    transition: background 0.2s;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* トグルスイッチ本体（ONのとき） */
+  .toggle-switch.on {
+    background: #2d2a4a;
+  }
+
+  /* トグルスイッチの丸いつまみ */
+  .toggle-knob {
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    transition: left 0.2s;
+  }
+
+  /* ONのときはつまみを右に移動 */
+  .toggle-switch.on .toggle-knob {
+    left: 20px;
+  }
+
+  /* トークン表示セクション */
+  .token-section {
+    margin-top: 12px;
+  }
+
+  .token-hint {
+    font-size: 13px;
+    color: #888;
+    margin-bottom: 6px;
+  }
+
+  /* トークンのバッジ一覧 */
+  .token-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* トークン1つ1つのバッジ */
+  .token-badge {
+    padding: 4px 10px;
+    background: #e8e7f0;
+    color: #2d2a4a;
+    border-radius: 20px;
+    font-size: 15px;
+    font-family: "Sarabun", sans-serif;
+  }
+
+  /* トークンバッジをボタンにしたときのリセット */
+  .token-badge {
+    cursor: pointer;
+    border: none;
+  }
+
+  .token-badge:hover {
+    background: #d0ceea;
+  }
+
+  /* 除外登録フォーム */
+  .exclude-form {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+  }
+
+  /* 入力欄とボタンを横並びにする */
+  .exclude-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .exclude-input-row input {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: "Sarabun", sans-serif;
+  }
+
+  /* 登録ボタン */
+  .btn-register {
+    padding: 6px 16px;
+    font-size: 14px;
+    background: #2d2a4a;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .btn-register:hover {
+    opacity: 0.8;
+  }
+
+  /* 登録完了・警告メッセージ */
+  .register-message {
+    font-size: 13px;
+    color: #555;
+    margin-bottom: 4px;
+  }
+
+  /* 除外中の件数表示 */
+  .excluded-count {
+    font-size: 13px;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  /* 「一覧を見る →」リンク */
+  .excluded-link {
+    font-size: 13px;
+    color: #2d2a4a;
+    margin-left: 8px;
+  }
+
+  .excluded-link:hover {
+    text-decoration: underline;
   }
 </style>
