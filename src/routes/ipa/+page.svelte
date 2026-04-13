@@ -74,10 +74,59 @@
     return char >= "\u0E00" && char <= "\u0E7F";
   }
 
-  // --- 最長一致法でタイ語をトークンに分割する関数 ---
-  // 例：「สวัสดีครับ」→ ["สวัสดี", "ครับ"]
-  // 除外リストに含まれるトークンは「辞書にない単語」として扱い、
-  // より短い単語での分割を試みる
+  // --- 単独で区切るべきタイ文字かどうかを判定する関数 ---
+  // ๆ（U+0E46）：直前の単語を繰り返す記号
+  // ฯ（U+0E2F）：省略記号
+  // これらは辞書に単独では載っていないため、かたまりから切り離して個別に処理する
+  function isSeparatorChar(char) {
+    return char === "\u0E46" || char === "\u0E2F";
+  }
+
+  // --- タイ文字のかたまりをバックトラッキングで分割する関数 ---
+  // 「全部辞書で変換できる分割」を優先して探す
+  // 例：ละครั้ง →「ละคร + ั้ง（変換不可）」より「ละ + ครั้ง（全部変換可）」を採用
+  function tokenizeThai(text, pos) {
+    // 末尾まで到達したら成功（空配列を返す）
+    if (pos >= text.length) return [];
+
+    // 最長→最短の順で候補を試す（最大20文字）
+    const maxLen = Math.min(20, text.length - pos);
+    for (let len = maxLen; len >= 1; len--) {
+      const candidate = text.slice(pos, pos + len);
+
+      // 除外リストに含まれているトークンは辞書にないものとして扱う
+      // useExcludedList が OFF のときはこのチェックをスキップする
+      if (useExcludedList && excludedTokens.includes(candidate)) {
+        continue;
+      }
+
+      // 辞書にある単語だけを候補として採用する
+      if (!dictionary[candidate]) continue;
+
+      // この候補を採用して、残りを再帰的に処理する
+      const rest = tokenizeThai(text, pos + len);
+
+      // rest が null のときは残りの分割が失敗 → この候補は諦めて次の長さを試す
+      if (rest === null) continue;
+
+      // 成功！この候補 + 残りの結果を返す
+      return [candidate, ...rest];
+    }
+
+    // 辞書にある単語が見つからなかった
+    // → タイ文字の場合は null を返して呼び出し元にバックトラックさせる
+    // → タイ文字以外（数字・記号など）はそのまま追加して続ける
+    if (isThaiChar(text[pos])) {
+      return null;
+    }
+    const rest = tokenizeThai(text, pos + 1);
+    if (rest === null) return null;
+    return [text[pos], ...rest];
+  }
+
+  // --- 最長一致＋バックトラッキングでタイ語をトークンに分割する関数 ---
+  // タイ文字のかたまりは tokenizeThai() に渡し、
+  // タイ文字以外（スペース・英数字など）はそのまままとめて追加する
   function tokenize(text) {
     const tokens = [];
     let i = 0;
@@ -95,32 +144,33 @@
         continue;
       }
 
-      // タイ文字の場合：できるだけ長い単語を辞書から探す（最長一致）
-      let matched = false;
-      // 最大20文字まで試す（タイ語の単語はほぼ20文字以内）
-      for (let len = 20; len >= 1; len--) {
-        const candidate = text.slice(i, i + len);
-
-        // 除外リストに含まれているトークンは辞書にないものとして扱う
-        // （除外することで、より短い単語での分割が試みられる）
-        // useExcludedList が OFF のときはこのチェックをスキップする
-        if (useExcludedList && excludedTokens.includes(candidate)) {
+      // タイ文字のかたまりをまとめて取り出す
+      // ๆ と ฯ はかたまりから切り離して単独で処理する
+      while (i < text.length && isThaiChar(text[i])) {
+        // ๆ と ฯ は単独トークンとして追加して次へ進む
+        if (isSeparatorChar(text[i])) {
+          tokens.push(text[i]);
+          i++;
           continue;
         }
 
-        if (dictionary[candidate]) {
-          // 辞書に見つかった！このトークンを追加する
-          tokens.push(candidate);
-          i += len;
-          matched = true;
-          break;
+        // 通常のタイ文字のかたまりを取り出す
+        let thaiChunk = "";
+        while (i < text.length && isThaiChar(text[i]) && !isSeparatorChar(text[i])) {
+          thaiChunk += text[i];
+          i++;
         }
-      }
 
-      // 辞書に見つからなかった場合は1文字そのまま追加
-      if (!matched) {
-        tokens.push(text[i]);
-        i++;
+        // バックトラッキングで分割してトークンに追加する
+        // null のときは完全な分割ができなかった → 1文字ずつそのまま追加する
+        const thaiTokens = tokenizeThai(thaiChunk, 0);
+        if (thaiTokens === null) {
+          for (const char of thaiChunk) {
+            tokens.push(char);
+          }
+        } else {
+          tokens.push(...thaiTokens);
+        }
       }
     }
 
@@ -131,9 +181,6 @@
   function convertLine(line) {
     // 最長一致法でトークンに分割する
     const tokens = tokenize(line);
-
-    // ★ 確認用（後で削除する）
-    console.log("tokens:", tokens);
 
     let result = "";
 
