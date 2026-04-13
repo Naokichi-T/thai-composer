@@ -317,5 +317,6 @@
     font-size: 20px;
     line-height: 1.8;
     white-space: pre-wrap;
+    font-family: Arial, Helvetica, sans-serif;
   }
 </style>
