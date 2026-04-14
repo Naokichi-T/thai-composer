@@ -120,6 +120,20 @@
       from += batchSize;
     }
 
+    // ログイン済みの場合は user_words も取得して先頭に追加する
+    const { data: session } = await supabase.auth.getSession();
+    if (session.session) {
+      const { data: userWordsData, error: userWordsError } = await supabase
+        .from("user_words")
+        .select("thai, reading, meaning, thai_normalized, reading_normalized, phonemic_normalized")
+        .order("created_at", { ascending: false });
+      if (userWordsData && userWordsData.length > 0) {
+        // user_words を allWords の先頭に追加する
+        // no と url_no は user_words にないので null にする
+        allData = [...userWordsData, ...allData];
+      }
+    }
+
     allWords = allData;
 
     // Fuse.jsのインスタンスを初期化する（読み方検索用）

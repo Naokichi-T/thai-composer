@@ -200,7 +200,7 @@
     <!-- 読み入力欄 -->
     <div class="field">
       <label for="reading">読み</label>
-      <input id="reading" type="text" bind:value={inputReading} placeholder="例：mískhɔɔn" />
+      <input id="reading" type="text" bind:value={inputReading} placeholder="例：miskhɔɔw" />
     </div>
 
     <!-- 意味入力欄 -->
