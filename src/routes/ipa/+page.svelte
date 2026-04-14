@@ -31,8 +31,10 @@
   ];
 
   // neutral記号：前後ともスペースなし
-  // 例：「/」「`」
   const NEUTRAL_SYMBOLS = ["/", "`"];
+
+  // 文脈依存記号：元のトークンにスペースが含まれていればopening、なければclosing
+  const CONTEXT_SYMBOLS = ['"', "'"];
 
   // --- 状態管理 ---
   let inputText = $state(""); // 入力されたタイ語
@@ -256,7 +258,15 @@
       const part = parts[i];
       const trimmed = part.text.trim();
 
-      if (part.type === "thai") {
+      if (part.type === "space") {
+        // 元の入力のスペース：直前の自動スペースを除去して元のスペースを2個追加する
+        // 例：「khráp 」+「 」→「khráp  」（スペース2個）
+        if (result.endsWith(" ")) {
+          result = result.slice(0, -1) + "  ";
+        } else {
+          result += " ";
+        }
+      } else if (part.type === "thai") {
         // タイ語・ๆ・ฯ の後ろにはスペースを追加する
         result += part.text + " ";
       } else if (trimmed.length === 1 && OPENING_SYMBOLS.includes(trimmed)) {
@@ -277,11 +287,29 @@
         }
       } else if (trimmed.length === 1 && NEUTRAL_SYMBOLS.includes(trimmed)) {
         // neutral記号：前後ともスペースなし
-        // 例：「níi 」+「/」→「níi/」
         if (result.endsWith(" ")) {
           result = result.slice(0, -1) + trimmed;
         } else {
           result += trimmed;
+        }
+      } else if (trimmed.length === 1 && CONTEXT_SYMBOLS.includes(trimmed)) {
+        // 文脈依存記号（" '）：
+        // 元のトークンにスペースが含まれていた（' "'）→ opening → 前にスペース・後ろにスペースなし
+        // 元のトークンにスペースがなかった（'"'）→ closing → 前にスペースなし・後ろにスペース
+        if (part.text.startsWith(" ")) {
+          // opening：直前のスペースはそのまま使い、記号だけ追加する
+          if (result.endsWith(" ")) {
+            result += trimmed;
+          } else {
+            result += " " + trimmed;
+          }
+        } else {
+          // closing：直前のスペースを除去してからくっつけて、後ろにスペースを追加する
+          if (result.endsWith(" ")) {
+            result = result.slice(0, -1) + trimmed + " ";
+          } else {
+            result += trimmed + " ";
+          }
         }
       } else {
         // 数字・記号混在（1,000など）は先頭スペースを除去して追加する
