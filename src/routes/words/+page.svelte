@@ -114,8 +114,7 @@
    * thai_normalized・reading_normalized を自動計算してから保存する
    */
   async function handleAdd() {
-    // タイ語が空のときは何もしない
-    if (!inputThai.trim()) return;
+    if (!inputThai.trim() || !inputReading.trim() || !inputMeaning.trim()) return;
 
     saving = true;
     errorMessage = "";
@@ -199,13 +198,13 @@
 
     <!-- 読み入力欄 -->
     <div class="field">
-      <label for="reading">読み</label>
-      <input id="reading" type="text" bind:value={inputReading} placeholder="例：miskhɔɔw" />
+      <label for="reading">読み *</label>
+      <input id="reading" type="text" bind:value={inputReading} placeholder="例：mískhɔɔw" />
     </div>
 
     <!-- 意味入力欄 -->
     <div class="field">
-      <label for="meaning">意味</label>
+      <label for="meaning">意味 *</label>
       <input id="meaning" type="text" bind:value={inputMeaning} placeholder="例：不在着信" />
     </div>
 
@@ -224,7 +223,7 @@
     {/if}
 
     <!-- 登録ボタン -->
-    <button class="btn-add" onclick={handleAdd} disabled={saving || !inputThai.trim()}>
+    <button class="btn-add" onclick={handleAdd} disabled={saving || !inputThai.trim() || !inputReading.trim() || !inputMeaning.trim()}>
       {saving ? "登録中..." : "登録"}
     </button>
   </div>
