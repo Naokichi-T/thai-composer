@@ -373,21 +373,11 @@
   }
 
   /**
-   * 除外リストに LocalStorage へ保存する関数
-   * 登録・解除のたびに呼ぶ
-   */
-  function saveExcludedTokens() {
-    localStorage.setItem("ipa_excluded_tokens", JSON.stringify(excludedTokens));
-  }
-
-  /**
    * 除外リストにトークンを登録する関数
-   * 入力欄の内容を追加して LocalStorage に保存する
+   * ipa_excluded テーブルに INSERT する
    */
-  function registerToken() {
+  async function registerToken() {
     const token = excludeInput.trim();
-
-    // 空のときは何もしない
     if (!token) return;
 
     // すでに登録済みのときはメッセージを出して終了
@@ -397,11 +387,20 @@
       return;
     }
 
-    // 除外リストに追加して保存する
-    excludedTokens = [...excludedTokens, token];
-    saveExcludedTokens();
+    // ログイン済みの場合は Supabase に保存する
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (sessionData.session) {
+      const { error } = await supabase.from("ipa_excluded").insert({ user_id: sessionData.session.user.id, token });
 
-    // 入力欄をクリアしてメッセージを表示する
+      if (error) {
+        registerMessage = "❌ 登録に失敗しました";
+        setTimeout(() => (registerMessage = ""), 2000);
+        return;
+      }
+    }
+
+    // 画面上の除外リストにも追加する
+    excludedTokens = [...excludedTokens, token];
     excludeInput = "";
     registerMessage = "✅ 登録しました";
     setTimeout(() => (registerMessage = ""), 2000);
@@ -416,14 +415,53 @@
   }
 
   // --- ページ表示時にデータを読み込む ---
-  onMount(() => {
+  onMount(async () => {
     loadDictionary();
 
-    // LocalStorage から除外リストを読み込む
-    const saved = localStorage.getItem("ipa_excluded_tokens");
-    if (saved) {
-      excludedTokens = JSON.parse(saved);
+    // 除外リストを取得する関数（onMount と visibilitychange の両方で使う）
+    async function loadExcludedTokens() {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        const { data } = await supabase.from("ipa_excluded").select("token");
+
+        if (data) {
+          excludedTokens = data.map((row) => row.token);
+        }
+      }
     }
+
+    // 単語登録（user_words）を取得する関数
+    async function loadUserWords() {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        const { data } = await supabase.from("user_words").select("thai, reading").eq("use_for_ipa", true);
+
+        if (data) {
+          additionalTokens = data.map((w) => ({
+            thai: w.thai,
+            ipa: w.reading ?? "",
+          }));
+        }
+      }
+    }
+
+    // ページ表示時に取得する
+    await loadExcludedTokens();
+
+    // 別タブから戻ってきたときに再取得する
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        loadExcludedTokens();
+        loadUserWords();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // ページを離れるときにイベントリスナーを解除する（メモリリーク防止）
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   });
 </script>
 
@@ -834,35 +872,6 @@
 
   .excluded-link:hover {
     text-decoration: underline;
-  }
-
-  /* 追加登録フォーム：タイ語・IPA・ボタンを横並びにする */
-  .additional-input-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 6px;
-  }
-
-  /* タイ語入力欄（少し広め） */
-  .additional-input-thai {
-    flex: 2;
-    min-width: 120px;
-    padding: 6px 10px;
-    font-size: 15px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-family: "Sarabun", sans-serif;
-  }
-
-  /* IPA入力欄 */
-  .additional-input-ipa {
-    flex: 2;
-    min-width: 120px;
-    padding: 6px 10px;
-    font-size: 15px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    font-family: Arial, Helvetica, sans-serif;
   }
 
   /* 登録ボタン：両方入力済みでないと押せない */

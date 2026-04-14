@@ -1,83 +1,52 @@
 <script>
   import { onMount } from "svelte";
+  import { supabase } from "$lib/supabase.js";
 
   // --- 状態管理 ---
-  let excludedTokens = $state([]); // 除外トークンの一覧
-  let importMessage = $state(""); // インポート完了メッセージ
+  let excludedTokens = $state([]); // 除外トークンの一覧（{ id, token } の配列）
+  let userId = $state(null); // ログイン中のユーザーID
 
   // --- ページ表示時に LocalStorage から読み込む ---
-  onMount(() => {
-    const saved = localStorage.getItem("ipa_excluded_tokens");
-    if (saved) {
-      excludedTokens = JSON.parse(saved);
+  onMount(async () => {
+    // ログイン確認
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      window.location.href = "/login";
+      return;
     }
+    userId = data.session.user.id;
+
+    // ipa_excluded テーブルから除外トークンを取得する
+    await fetchExcludedTokens();
   });
 
   /**
-   * 除外リストを LocalStorage に保存する関数
-   * 解除・インポートのたびに呼ぶ
+   * ipa_excluded テーブルから自分の除外トークンを取得する関数
    */
-  function saveExcludedTokens() {
-    localStorage.setItem("ipa_excluded_tokens", JSON.stringify(excludedTokens));
+  async function fetchExcludedTokens() {
+    const { data, error } = await supabase.from("ipa_excluded").select("id, token").order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("除外リスト取得エラー:", error);
+      return;
+    }
+
+    excludedTokens = data;
   }
 
   /**
-   * 指定したトークンを除外リストから解除する関数
+   * 指定した id のトークンを ipa_excluded テーブルから削除する関数
    */
-  function removeToken(token) {
-    excludedTokens = excludedTokens.filter((t) => t !== token);
-    saveExcludedTokens();
-  }
+  async function removeToken(id) {
+    const { error } = await supabase.from("ipa_excluded").delete().eq("id", id);
 
-  /**
-   * 除外リストを CSV ファイルとしてダウンロードする関数
-   * 1行1トークンの形式で出力する
-   */
-  function exportCSV() {
-    // 1行1トークンの CSV 文字列を作る
-    const csvContent = excludedTokens.join("\n");
+    if (error) {
+      console.error("削除エラー:", error);
+      return;
+    }
 
-    // ダウンロード用の a タグを一時的に作ってクリックする
-    const blob = new Blob([csvContent], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ipa_excluded.csv";
-    a.click();
-
-    // 使い終わった URL を解放する
-    URL.revokeObjectURL(url);
-  }
-
-  /**
-   * CSV ファイルを読み込んで除外リストに追加する関数
-   * すでに登録済みのトークンは重複して追加しない
-   */
-  function importCSV(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      // 1行1トークンとして読み込む（空行は除外する）
-      const lines = e.target.result
-        .split("\n")
-        .map((l) => l.trim())
-        .filter((l) => l.length > 0);
-
-      // すでに登録済みのトークンは重複して追加しない
-      const newTokens = lines.filter((l) => !excludedTokens.includes(l));
-      excludedTokens = [...excludedTokens, ...newTokens];
-      saveExcludedTokens();
-
-      // インポート結果をメッセージで表示する
-      importMessage = `✅ ${newTokens.length} 件追加しました（重複 ${lines.length - newTokens.length} 件スキップ）`;
-      setTimeout(() => (importMessage = ""), 3000);
-
-      // input をリセットして同じファイルを再度インポートできるようにする
-      event.target.value = "";
-    };
-    reader.readAsText(file, "utf-8");
+    // 削除成功：一覧から該当行を除く
+    excludedTokens = excludedTokens.filter((t) => t.id !== id);
   }
 </script>
 
@@ -91,20 +60,6 @@
   <!-- IPA変換ページに戻るリンク -->
   <a class="back-link" href="/ipa">← IPA変換に戻る</a>
 
-  <!-- CSV操作ボタン -->
-  <div class="csv-actions">
-    <button class="btn-export" onclick={exportCSV}>CSV出力</button>
-
-    <!-- CSVインポート：input[type=file] を hidden にしてボタンからクリックする -->
-    <button class="btn-import" onclick={() => document.getElementById("csv-import").click()}> CSVインポート </button>
-    <input id="csv-import" type="file" accept=".csv,.txt" style="display:none" onchange={importCSV} />
-  </div>
-
-  <!-- インポート結果メッセージ -->
-  {#if importMessage}
-    <p class="import-message">{importMessage}</p>
-  {/if}
-
   <!-- 除外リスト一覧 -->
   {#if excludedTokens.length === 0}
     <p class="empty">登録なし</p>
@@ -114,9 +69,9 @@
       <tbody>
         {#each excludedTokens as token}
           <tr>
-            <td class="token-cell">{token}</td>
+            <td class="token-cell">{token.token}</td>
             <td class="action-cell">
-              <button class="btn-remove" onclick={() => removeToken(token)}>解除</button>
+              <button class="btn-remove" onclick={() => removeToken(token.id)}>解除</button>
             </td>
           </tr>
         {/each}
@@ -148,50 +103,6 @@
 
   .back-link:hover {
     text-decoration: underline;
-  }
-
-  /* CSV操作ボタンの並び */
-  .csv-actions {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-
-  /* CSV出力ボタン */
-  .btn-export {
-    padding: 8px 18px;
-    font-size: 14px;
-    background: #2d2a4a;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  .btn-export:hover {
-    opacity: 0.8;
-  }
-
-  /* CSVインポートボタン */
-  .btn-import {
-    padding: 8px 18px;
-    font-size: 14px;
-    background: #fff;
-    color: #2d2a4a;
-    border: 1px solid #2d2a4a;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-
-  .btn-import:hover {
-    background: #e8e7f0;
-  }
-
-  /* インポート結果メッセージ */
-  .import-message {
-    font-size: 13px;
-    color: #555;
-    margin-bottom: 12px;
   }
 
   /* 0件のときのメッセージ */

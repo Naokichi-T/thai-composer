@@ -515,6 +515,15 @@
   onMount(() => {
     fetchAllWords();
     loadSavedList();
+
+    // 別タブから戻ってきたときに user_words を再取得する
+    async function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        await fetchAllWords();
+      }
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     // LocalStorageから設定を復元する
     searchMode = localStorage.getItem("searchMode") ?? "thai";
     resultViewMode = localStorage.getItem("resultViewMode") ?? "list";
@@ -549,8 +558,6 @@
     isMobile = "ontouchstart" in window;
 
     if (isMobile) {
-      // スクロールイベントが発生したら即座にキーボードを閉じる
-      // passive: true = ブラウザに「スクロールを邪魔しない」と伝えてスクロールを速くする
       window.addEventListener(
         "scroll",
         () => {
@@ -559,6 +566,11 @@
         { passive: true },
       );
     }
+
+    // ページを離れるときにイベントリスナーを解除する（メモリリーク防止）
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   });
 </script>
 
