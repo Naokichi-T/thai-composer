@@ -1,8 +1,42 @@
 <script>
   import { onMount } from "svelte";
 
+  // --- 記号の種類を3つに分けて定義する ---
+  // 後で追加したい記号はそれぞれのリストに足す
+
+  // opening記号：前にスペース・後ろにスペースなし
+  // 例：「wâa (hǎa)」→ wâa の後ろにスペース、( の後ろにスペースなし
+  const OPENING_SYMBOLS = [
+    "(",
+    "「",
+    "『",
+    "【",
+    "《",
+    "〈",
+    "\u201C", // "（カーリーダブルクォート開き）
+    "\u2018", // '（カーリーシングルクォート開き）
+  ];
+
+  // closing記号：前にスペースなし・後ろにスペース
+  // 例：「(hǎa) tɔ̂ŋ」→ ) の前にスペースなし、) の後ろにスペース
+  const CLOSING_SYMBOLS = [
+    ")",
+    "」",
+    "』",
+    "】",
+    "》",
+    "〉",
+    "\u201D", // "（カーリーダブルクォート閉じ）
+    "\u2019", // '（カーリーシングルクォート閉じ）
+  ];
+
+  // neutral記号：前後ともスペースなし
+  // 例：「/」「`」
+  const NEUTRAL_SYMBOLS = ["/", "`"];
+
   // --- 状態管理 ---
   let inputText = $state(""); // 入力されたタイ語
+
   let outputText = $state(""); // 変換結果
   let dictionary = $state({}); // 対応表（タイ語 → IPA）
   let isLoading = $state(true); // 読み込み中フラグ
@@ -181,27 +215,77 @@
   function convertLine(line) {
     // 最長一致法でトークンに分割する
     const tokens = tokenize(line);
+    // ★ 確認用（後で削除する）
+    console.log("tokens:", tokens);
 
-    let result = "";
-
+    // まず各トークンをIPA or そのままに変換してパーツの配列を作る
+    const parts = [];
     for (const token of tokens) {
       const ipa = dictionary[token];
       if (ipa) {
-        // タイ語トークン：IPAに変換してスペースを後ろに追加する
-        // ˑ（音節区切り記号）を除去して返す
-        result += ipa.replaceAll("ˑ", "") + " ";
+        // タイ語トークン：IPAに変換する（ˑ音節区切り記号を除去）
+        parts.push({ text: ipa.replaceAll("ˑ", ""), type: "thai" });
       } else if (isSeparatorChar(token)) {
-        // ๆ と ฯ はそのまま出力してスペースを後ろに追加する
-        result += token + " ";
+        // ๆ と ฯ はそのまま出力する
+        parts.push({ text: token, type: "thai" });
+      } else if (token.trim() === "") {
+        // スペースだけのchunkはそのまま追加する
+        parts.push({ text: token, type: "space" });
       } else {
-        // スペースだけのchunkはそのまま追加する（センテンス間のスペースを保持するため）
-        // スペース以外を含むchunk（"1,000"など）は先頭のスペースを除去する
-        // 例：" 1,000 " → "1,000 "（タイ語トークンの後ろのスペースと重複するため）
-        if (token.trim() === "") {
-          result += token;
+        // トークンがすべて記号文字のみかどうか確認する
+        const tokenTrimmed = token.trim();
+        const allSymbols = [...tokenTrimmed].every((c) => [...OPENING_SYMBOLS, ...CLOSING_SYMBOLS, ...NEUTRAL_SYMBOLS].includes(c));
+
+        if (allSymbols && tokenTrimmed.length > 1) {
+          // 複数の記号が連続している（')(', '/(' など）→ 1文字ずつに分割する
+          // 先頭のスペースは最初の文字に付ける
+          const leading = token.startsWith(" ") ? " " : "";
+          [...tokenTrimmed].forEach((char, idx) => {
+            parts.push({ text: idx === 0 ? leading + char : char, type: "other" });
+          });
         } else {
-          result += token.trimStart();
+          // 数字・記号混在（1,000など）はそのまま追加する
+          parts.push({ text: token, type: "other" });
         }
+      }
+    }
+
+    // パーツを結合してスペースを調整する
+    let result = "";
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const trimmed = part.text.trim();
+
+      if (part.type === "thai") {
+        // タイ語・ๆ・ฯ の後ろにはスペースを追加する
+        result += part.text + " ";
+      } else if (trimmed.length === 1 && OPENING_SYMBOLS.includes(trimmed)) {
+        // opening記号：前にスペース・後ろにスペースなし
+        // 例：「wâa 」+「(」→「wâa (」
+        // 直前にスペースがなければスペースを追加する
+        if (!result.endsWith(" ") && result.length > 0) {
+          result += " ";
+        }
+        result += trimmed;
+      } else if (trimmed.length === 1 && CLOSING_SYMBOLS.includes(trimmed)) {
+        // closing記号：前にスペースなし・後ろにスペース
+        // 例：「hǎa 」+「)」→「hǎa) 」
+        if (result.endsWith(" ")) {
+          result = result.slice(0, -1) + trimmed + " ";
+        } else {
+          result += trimmed + " ";
+        }
+      } else if (trimmed.length === 1 && NEUTRAL_SYMBOLS.includes(trimmed)) {
+        // neutral記号：前後ともスペースなし
+        // 例：「níi 」+「/」→「níi/」
+        if (result.endsWith(" ")) {
+          result = result.slice(0, -1) + trimmed;
+        } else {
+          result += trimmed;
+        }
+      } else {
+        // 数字・記号混在（1,000など）は先頭スペースを除去して追加する
+        result += part.text.trimStart();
       }
     }
 
