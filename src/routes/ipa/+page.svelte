@@ -44,12 +44,16 @@
   let isLoading = $state(true); // 読み込み中フラグ
   let loadError = $state(""); // エラーメッセージ
   let copied = $state(false); // コピー完了フラグ
-  let showAdvanced = $state(false); // 「詳細設定」の開閉フラグ
   let useExcludedList = $state(true); // 除外リストを変換に反映するかどうか
   let selectedTokens = $state([]); // 選択範囲から抽出したトークン一覧
   let excludedTokens = $state([]); // 除外するトークンの一覧
   let excludeInput = $state(""); // 除外トークンの入力欄
   let registerMessage = $state(""); // 登録完了メッセージ
+  let openSection = $state(""); // 開いているアコーディオン（"exclude" | "additional" | ""）
+  let additionalTokens = $state([]); // 追加登録トークンの一覧（{ thai, ipa } の配列）
+  let additionalThaiInput = $state(""); // 追加登録のタイ語入力欄
+  let additionalIpaInput = $state(""); // 追加登録のIPA入力欄
+  let additionalMessage = $state(""); // 追加登録の完了・警告メッセージ
 
   /**
    * 変換結果をクリップボードにコピーする関数
@@ -136,8 +140,9 @@
         continue;
       }
 
-      // 辞書にある単語だけを候補として採用する
-      if (!dictionary[candidate]) continue;
+      // 追加登録リストまたは辞書にある単語だけを候補として採用する
+      const inAdditional = additionalTokens.some((t) => t.thai === candidate);
+      if (!inAdditional && !dictionary[candidate]) continue;
 
       // この候補を採用して、残りを再帰的に処理する
       const rest = tokenizeThai(text, pos + len);
@@ -221,7 +226,9 @@
     // まず各トークンをIPA or そのままに変換してパーツの配列を作る
     const parts = [];
     for (const token of tokens) {
-      const ipa = dictionary[token];
+      // まず追加登録リストを参照する。なければ辞書（dictionary）を参照する
+      const additionalEntry = additionalTokens.find((t) => t.thai === token);
+      const ipa = additionalEntry ? additionalEntry.ipa : dictionary[token];
       if (ipa) {
         // タイ語トークン：IPAに変換する（ˑ音節区切り記号を除去）
         parts.push({ text: ipa.replaceAll("ˑ", ""), type: "thai" });
@@ -351,6 +358,43 @@
   }
 
   /**
+   * 追加登録リストを LocalStorage に保存する関数
+   * 登録・解除のたびに呼ぶ
+   */
+  function saveAdditionalTokens() {
+    localStorage.setItem("ipa_additional_tokens", JSON.stringify(additionalTokens));
+  }
+
+  /**
+   * 追加登録フォームにトークンを登録する関数
+   * タイ語・IPA の両方が入力されているときだけ動く
+   */
+  function registerAdditional() {
+    const thai = additionalThaiInput.trim();
+    const ipa = additionalIpaInput.trim();
+
+    // 両方入力されていない場合は何もしない（念のためのガード）
+    if (!thai || !ipa) return;
+
+    // すでに同じタイ語が登録済みのときはメッセージを出して終了
+    if (additionalTokens.some((t) => t.thai === thai)) {
+      additionalMessage = "⚠️ すでに登録されています";
+      setTimeout(() => (additionalMessage = ""), 2000);
+      return;
+    }
+
+    // 追加登録リストに追加して保存する
+    additionalTokens = [...additionalTokens, { thai, ipa }];
+    saveAdditionalTokens();
+
+    // 入力欄をクリアしてメッセージを表示する
+    additionalThaiInput = "";
+    additionalIpaInput = "";
+    additionalMessage = "✅ 登録しました";
+    setTimeout(() => (additionalMessage = ""), 2000);
+  }
+
+  /**
    * 除外リストに LocalStorage へ保存する関数
    * 登録・解除のたびに呼ぶ
    */
@@ -403,13 +447,23 @@
       excludedTokens = JSON.parse(saved);
     }
 
-    // 別タブ（/ipa/excluded）で LocalStorage が更新されたら自動で反映する
-    function handleStorage(e) {
-      // ipa_excluded_tokens 以外のキーの変更は無視する
-      if (e.key !== "ipa_excluded_tokens") return;
+    // LocalStorage から追加登録リストを読み込む
+    const savedAdditional = localStorage.getItem("ipa_additional_tokens");
+    if (savedAdditional) {
+      additionalTokens = JSON.parse(savedAdditional);
+    }
 
-      // 新しい値を読み込む（null のときは空配列にする）
-      excludedTokens = e.newValue ? JSON.parse(e.newValue) : [];
+    // 別タブ（/ipa/excluded・/ipa/additional）で LocalStorage が更新されたら自動で反映する
+    function handleStorage(e) {
+      // ipa_excluded_tokens が更新されたら除外リストを更新する
+      if (e.key === "ipa_excluded_tokens") {
+        excludedTokens = e.newValue ? JSON.parse(e.newValue) : [];
+      }
+
+      // ipa_additional_tokens が更新されたら追加登録リストを更新する
+      if (e.key === "ipa_additional_tokens") {
+        additionalTokens = e.newValue ? JSON.parse(e.newValue) : [];
+      }
     }
 
     window.addEventListener("storage", handleStorage);
@@ -433,15 +487,57 @@
   {:else if loadError}
     <p class="error">{loadError}</p>
   {:else}
-    <p class="loaded">✅ {Object.keys(dictionary).length.toLocaleString()} 語 読み込み完了</p>
-
-    <!-- 詳細設定（アコーディオン）← テキストエリアの上に置く -->
-    <div class="advanced-section">
-      <button class="advanced-toggle" onclick={() => (showAdvanced = !showAdvanced)}>
-        {showAdvanced ? "▼" : "▶"} 詳細設定
+    <!-- アコーディオン：追加登録・除外登録（排他的開閉） -->
+    <div class="advanced-section accordion-stack">
+      <!-- ▶ 追加登録 -->
+      <button class="advanced-toggle" onclick={() => (openSection = openSection === "additional" ? "" : "additional")}>
+        {openSection === "additional" ? "▼" : "▶"} 追加登録
       </button>
 
-      {#if showAdvanced}
+      {#if openSection === "additional"}
+        <div class="advanced-body">
+          <!-- タイ語入力欄 -->
+          <p class="token-hint">タイ語と読み（IPA）を入力して登録：</p>
+          <div class="additional-input-row">
+            <input
+              type="text"
+              class="additional-input-thai"
+              placeholder="タイ語（例：เมนู）"
+              bind:value={additionalThaiInput}
+              onkeydown={(e) => {
+                if (e.key === "Enter" && !e.isComposing) registerAdditional();
+              }}
+            />
+            <input
+              type="text"
+              class="additional-input-ipa"
+              placeholder="読み（例：meenuu）"
+              bind:value={additionalIpaInput}
+              onkeydown={(e) => {
+                if (e.key === "Enter" && !e.isComposing) registerAdditional();
+              }}
+            />
+            <!-- 両方入力済みのときだけ押せる -->
+            <button class="btn-register" onclick={registerAdditional} disabled={!additionalThaiInput.trim() || !additionalIpaInput.trim()}>登録</button>
+          </div>
+          {#if additionalMessage}
+            <p class="register-message">{additionalMessage}</p>
+          {/if}
+          {#if additionalTokens.length > 0}
+            <p class="excluded-count">
+              登録中：{additionalTokens.length} 件
+              <a class="excluded-link" href="/ipa/additional" target="_blank">一覧を見る →</a>
+            </p>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- ▶ 除外登録 -->
+      <button class="advanced-toggle" onclick={() => (openSection = openSection === "exclude" ? "" : "exclude")}>
+        {openSection === "exclude" ? "▼" : "▶"} 除外登録
+      </button>
+
+      {#if openSection === "exclude"}
         <div class="advanced-body">
           <!-- 除外リストの反映ON/OFF -->
           <div class="toggle-row">
@@ -546,11 +642,6 @@
 
   .error {
     color: red;
-  }
-
-  .loaded {
-    color: green;
-    margin-bottom: 16px;
   }
 
   textarea {
@@ -667,8 +758,8 @@
 
   /* 詳細設定の中身エリア */
   .advanced-body {
-    margin-top: 8px;
-    padding: 16px;
+    /* margin-top: 4px; */
+    padding: 10px 16px;
     border: 1px solid #ddd;
     border-radius: 8px;
     background: #fafafa;
@@ -727,9 +818,9 @@
   }
 
   /* トークン表示セクション */
-  .token-section {
-    margin-top: 12px;
-  }
+  /* .token-section {
+    margin-top: 8px;
+  } */
 
   .token-hint {
     font-size: 13px;
@@ -766,8 +857,8 @@
 
   /* 除外登録フォーム */
   .exclude-form {
-    margin-top: 16px;
-    padding-top: 12px;
+    /* margin-top: 8px; */
+    padding-top: 8px;
     border-top: 1px solid #eee;
   }
 
@@ -825,5 +916,48 @@
 
   .excluded-link:hover {
     text-decoration: underline;
+  }
+
+  /* 追加登録フォーム：タイ語・IPA・ボタンを横並びにする */
+  .additional-input-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  /* タイ語入力欄（少し広め） */
+  .additional-input-thai {
+    flex: 2;
+    min-width: 120px;
+    padding: 6px 10px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: "Sarabun", sans-serif;
+  }
+
+  /* IPA入力欄 */
+  .additional-input-ipa {
+    flex: 2;
+    min-width: 120px;
+    padding: 6px 10px;
+    font-size: 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  /* 登録ボタン：両方入力済みでないと押せない */
+  .btn-register:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  /* アコーディオンを縦に並べる */
+  .accordion-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
   }
 </style>
