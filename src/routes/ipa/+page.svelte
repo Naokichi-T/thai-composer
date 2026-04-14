@@ -217,8 +217,6 @@
   function convertLine(line) {
     // 最長一致法でトークンに分割する
     const tokens = tokenize(line);
-    // ★ 確認用（後で削除する）
-    console.log("tokens:", tokens);
 
     // まず各トークンをIPA or そのままに変換してパーツの配列を作る
     const parts = [];
