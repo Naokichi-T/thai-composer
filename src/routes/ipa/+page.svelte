@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { supabase } from "$lib/supabase.js";
 
   // --- 記号の種類を3つに分けて定義する ---
   // 後で追加したい記号はそれぞれのリストに足す
@@ -50,10 +51,8 @@
   let excludeInput = $state(""); // 除外トークンの入力欄
   let registerMessage = $state(""); // 登録完了メッセージ
   let openSection = $state(""); // 開いているアコーディオン（"exclude" | "additional" | ""）
-  let additionalTokens = $state([]); // 追加登録トークンの一覧（{ thai, ipa } の配列）
-  let additionalThaiInput = $state(""); // 追加登録のタイ語入力欄
-  let additionalIpaInput = $state(""); // 追加登録のIPA入力欄
-  let additionalMessage = $state(""); // 追加登録の完了・警告メッセージ
+  let additionalTokens = $state([]); // user_wordsから取得したIPA用トークン（{ thai, ipa } の配列）
+  let isLoggedIn = $state(false); // ログイン済みかどうかのフラグ
 
   /**
    * 変換結果をクリップボードにコピーする関数
@@ -101,6 +100,22 @@
       }
 
       dictionary = dict;
+
+      // ログイン済みの場合は user_words から IPA用トークンを取得する
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        isLoggedIn = true;
+        const { data: userWordsData } = await supabase.from("user_words").select("thai, reading").eq("use_for_ipa", true);
+
+        if (userWordsData && userWordsData.length > 0) {
+          // { thai, ipa } の形式に変換する（reading を ipa として使う）
+          additionalTokens = userWordsData.map((w) => ({
+            thai: w.thai,
+            ipa: w.reading ?? "",
+          }));
+        }
+      }
+
       isLoading = false;
     } catch (e) {
       loadError = e.message;
@@ -358,43 +373,6 @@
   }
 
   /**
-   * 追加登録リストを LocalStorage に保存する関数
-   * 登録・解除のたびに呼ぶ
-   */
-  function saveAdditionalTokens() {
-    localStorage.setItem("ipa_additional_tokens", JSON.stringify(additionalTokens));
-  }
-
-  /**
-   * 追加登録フォームにトークンを登録する関数
-   * タイ語・IPA の両方が入力されているときだけ動く
-   */
-  function registerAdditional() {
-    const thai = additionalThaiInput.trim();
-    const ipa = additionalIpaInput.trim();
-
-    // 両方入力されていない場合は何もしない（念のためのガード）
-    if (!thai || !ipa) return;
-
-    // すでに同じタイ語が登録済みのときはメッセージを出して終了
-    if (additionalTokens.some((t) => t.thai === thai)) {
-      additionalMessage = "⚠️ すでに登録されています";
-      setTimeout(() => (additionalMessage = ""), 2000);
-      return;
-    }
-
-    // 追加登録リストに追加して保存する
-    additionalTokens = [...additionalTokens, { thai, ipa }];
-    saveAdditionalTokens();
-
-    // 入力欄をクリアしてメッセージを表示する
-    additionalThaiInput = "";
-    additionalIpaInput = "";
-    additionalMessage = "✅ 登録しました";
-    setTimeout(() => (additionalMessage = ""), 2000);
-  }
-
-  /**
    * 除外リストに LocalStorage へ保存する関数
    * 登録・解除のたびに呼ぶ
    */
@@ -446,32 +424,6 @@
     if (saved) {
       excludedTokens = JSON.parse(saved);
     }
-
-    // LocalStorage から追加登録リストを読み込む
-    const savedAdditional = localStorage.getItem("ipa_additional_tokens");
-    if (savedAdditional) {
-      additionalTokens = JSON.parse(savedAdditional);
-    }
-
-    // 別タブ（/ipa/excluded・/ipa/additional）で LocalStorage が更新されたら自動で反映する
-    function handleStorage(e) {
-      // ipa_excluded_tokens が更新されたら除外リストを更新する
-      if (e.key === "ipa_excluded_tokens") {
-        excludedTokens = e.newValue ? JSON.parse(e.newValue) : [];
-      }
-
-      // ipa_additional_tokens が更新されたら追加登録リストを更新する
-      if (e.key === "ipa_additional_tokens") {
-        additionalTokens = e.newValue ? JSON.parse(e.newValue) : [];
-      }
-    }
-
-    window.addEventListener("storage", handleStorage);
-
-    // ページを離れるときにイベントリスナーを解除する（メモリリーク防止）
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-    };
   });
 </script>
 
@@ -489,47 +441,13 @@
   {:else}
     <!-- アコーディオン：追加登録・除外登録（排他的開閉） -->
     <div class="advanced-section accordion-stack">
-      <!-- ▶ 追加登録 -->
-      <button class="advanced-toggle" onclick={() => (openSection = openSection === "additional" ? "" : "additional")}>
-        {openSection === "additional" ? "▼" : "▶"} 追加登録
-      </button>
-
-      {#if openSection === "additional"}
-        <div class="advanced-body">
-          <!-- タイ語入力欄 -->
-          <p class="token-hint">タイ語と読み（IPA）を入力して登録：</p>
-          <div class="additional-input-row">
-            <input
-              type="text"
-              class="additional-input-thai"
-              placeholder="タイ語（例：เมนู）"
-              bind:value={additionalThaiInput}
-              onkeydown={(e) => {
-                if (e.key === "Enter" && !e.isComposing) registerAdditional();
-              }}
-            />
-            <input
-              type="text"
-              class="additional-input-ipa"
-              placeholder="読み（例：meenuu）"
-              bind:value={additionalIpaInput}
-              onkeydown={(e) => {
-                if (e.key === "Enter" && !e.isComposing) registerAdditional();
-              }}
-            />
-            <!-- 両方入力済みのときだけ押せる -->
-            <button class="btn-register" onclick={registerAdditional} disabled={!additionalThaiInput.trim() || !additionalIpaInput.trim()}>登録</button>
-          </div>
-          {#if additionalMessage}
-            <p class="register-message">{additionalMessage}</p>
-          {/if}
-          {#if additionalTokens.length > 0}
-            <p class="excluded-count">
-              登録中：{additionalTokens.length} 件
-              <a class="excluded-link" href="/ipa/additional" target="_blank">一覧を見る →</a>
-            </p>
-          {/if}
-        </div>
+      <!-- ログイン済みのときだけ単語登録リンクを表示する -->
+      {#if isLoggedIn}
+        <p class="words-link-hint">
+          辞書にない単語は
+          <a class="excluded-link" href="/words" target="_blank">単語登録 →</a>
+          から登録できます（{additionalTokens.length}件登録中）
+        </p>
       {/if}
 
       <!-- ▶ 除外登録 -->
@@ -959,5 +877,12 @@
     flex-direction: column;
     gap: 8px;
     align-items: flex-start;
+  }
+
+  /* 単語登録リンクのヒント文 */
+  .words-link-hint {
+    font-size: 13px;
+    color: #888;
+    margin: 0;
   }
 </style>
