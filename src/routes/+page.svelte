@@ -554,7 +554,10 @@
 <main>
   <div class="header">
     <h1>タイ語コンポーザー</h1>
-    <a href="/ipa" target="_blank" class="ipa-link">IPA変換</a>
+    <div class="header-links">
+      <a class="ipa-link" href="/ipa" target="_blank" rel="noreferrer">IPA変換</a>
+      <a class="ipa-link" href="/words" target="_blank" rel="noreferrer">単語登録</a>
+    </div>
   </div>
 
   <!-- 作成エリア：選んだ単語が積み上がっていく場所 -->
@@ -1190,5 +1193,11 @@
 
   .ipa-link:hover {
     background-color: #e8e7f0;
+  }
+
+  /* ヘッダーのリンクを横並びにする */
+  .header-links {
+    display: flex;
+    gap: 8px;
   }
 </style>
