@@ -348,13 +348,19 @@
 
     const pos = savedCursorPos ?? composedText.length;
     composedText = composedText.slice(0, pos) + word.thai + composedText.slice(pos);
-    savedCursorPos = composedText.length;
+    // カーソルを「挿入位置 + 挿入した単語の文字数」に移動する（挿入語の直後）
+    savedCursorPos = pos + word.thai.length;
     query = "";
     selectedIndex = -1;
+    // 挿入語の直後の位置を変数に保存しておく（setTimeoutの外で計算済み）
+    const newCursorPos = pos + word.thai.length;
     setTimeout(() => {
       inputEl?.focus();
-      // 単語を挿入したあとに作成エリアを末尾までスクロールする
-      if (composerEl) composerEl.scrollTop = composerEl.scrollHeight;
+      // textareaのカーソル（キャレット）を挿入語の直後に移動する
+      if (composerEl) {
+        composerEl.setSelectionRange(newCursorPos, newCursorPos);
+        composerEl.scrollTop = composerEl.scrollHeight;
+      }
     }, 0);
   }
 
